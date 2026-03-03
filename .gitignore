@@ -145,5 +145,8 @@ vite.config.ts.timestamp-*
 
 Oracy-AI-Planning-Documentation.html
 Oracy-AI-Planning-Documentation.pdf
-project-docs\input→output AI spec.docx
-project-docs\Oracy AI - MVP brief.pdf
+
+# Sensitive project documents
+project-docs/Input→output AI spec.docx
+project-docs/Oracy AI - MVP brief.pdf
+project-docs/  # Ignore entire directory to be safe

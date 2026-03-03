@@ -3,30 +3,7 @@
 ## Overview
 
 The Oracy AI assessment pipeline consists of 5 sequential stages, transforming raw video/audio into structured, teacher-verifiable assessment reports. Each stage is modular and can be independently versioned, scaled, or replaced.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                           AI PIPELINE FLOW                                          │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                      │
-│   ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐ │
-│   │   STT    │────▶│ Feature  │────▶│ Benchmark│────▶│ Evidence │────▶│  LLM     │ │
-│   │  Step 1  │     │ Extract  │     │  Layer   │     │   Gen    │     │ Scoring  │ │
-│   │          │     │  Step 2  │     │  Step 3  │     │  Step 4  │     │  Step 5  │ │
-│   └──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘ │
-│        │                 │               │               │               │        │
-│        ▼                 ▼               ▼               ▼               ▼        │
-│   ┌──────────────────────────────────────────────────────────────────────────┐   │
-│   │                     OUTPUT: Draft Report                                  │   │
-│   │  • Per-strand scores (Emerging/Expected/Exceeding)                       │   │
-│   │  • 3-8 timestamped evidence clips per strand                             │   │
-│   │  • 3 strengths + 3 next steps (mode-specific)                            │   │
-│   │  • 1-2 student-friendly practice goals                                   │   │
-│   │  • Confidence indicators per strand                                      │   │
-│   └──────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                      │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-```
+![alt text](image-4.png)
 
 ---
 

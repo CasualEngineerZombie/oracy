@@ -843,3 +843,185 @@ EXPOSE 11434
 
 ENTRYPOINT ["ollama", "serve"]
 ```
+
+---
+
+## LLM Orchestration Layer Recommendations
+
+### Recommendation: Use LiteLLM (Not LangChain)
+
+For Oracy AI's specific use case, **LiteLLM** is recommended over LangChain for the following reasons:
+
+| Aspect | LangChain | LiteLLM | Recommendation |
+|--------|-----------|---------|----------------|
+| **Primary Use** | Complex agents, RAG, chains | Unified API across providers | LiteLLM - simpler |
+| **Cost Tracking** | Limited | Built-in spend tracking | LiteLLM |
+| **Fallback Logic** | Manual implementation | Automatic fallback | LiteLLM |
+| **Provider Routing** | Manual | Automatic load balancing | LiteLLM |
+| **Structured Output** | Pydantic integration | Instructor/LiteLLM native | Either |
+| **Learning Curve** | Steep | Minimal | LiteLLM |
+| **Overhead** | Heavy abstractions | Thin wrapper | LiteLLM |
+
+**Why LiteLLM for Oracy AI:**
+1. **Cost Optimization Focus**: LiteLLM has built-in cost tracking and spend monitoring - critical for your cost-reduction goals
+2. **Multi-Provider Support**: Native support for OpenRouter, OpenAI, Anthropic, etc. with a single interface
+3. **Automatic Fallbacks**: If one provider fails, automatically routes to another
+4. **Rate Limit Handling**: Built-in retry logic with exponential backoff
+5. **Simple Abstraction**: Thin wrapper that doesn't add unnecessary complexity
+
+### LiteLLM Implementation
+
+```python
+# llm/litellm_service.py
+import litellm
+from typing import Dict, Any, Optional
+import os
+
+class LiteLLMScoringService:
+    """
+    LLM scoring using LiteLLM for unified API across providers.
+    Best for: Cost optimization, automatic fallback, spend tracking.
+    """
+    
+    def __init__(self):
+        # Configure LiteLLM for cost tracking
+        litellm.success_callback = ["langfuse"]  # Optional: track in Langfuse
+        litellm.failure_callback = ["sentry"]     # Optional: error tracking
+        
+        # Set default cost-conscious models
+        self.primary_model = "openrouter/google/gemini-flash-1.5"  # Cheapest
+        self.fallback_models = [
+            "openrouter/anthropic/claude-3.5-haiku",
+            "openrouter/openai/gpt-4o-mini",
+        ]
+    
+    async def score_assessment(
+        self,
+        prompt: str,
+        system_prompt: str,
+        response_schema: Dict[str, Any],
+        temperature: float = 0.3
+    ) -> Dict[str, Any]:
+        """
+        Score assessment with automatic fallback and cost tracking.
+        
+        LiteLLM benefits:
+        - Automatic provider fallback if one fails
+        - Built-in cost tracking per request
+        - Unified API regardless of provider
+        """
+        try:
+            response = await litellm.acompletion(
+                model=self.primary_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                response_format={"type": "json_object"},
+                fallback_models=self.fallback_models,  # Auto-fallback
+                timeout=30,
+            )
+            
+            # LiteLLM provides cost info in response
+            cost = response.get("_response_cost", 0)
+            logger.info(f"Scoring cost: ${cost:.6f}")
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            logger.error(f"All LLM providers failed: {e}")
+            raise
+    
+    def get_spend_report(self) -> Dict[str, float]:
+        """Get cost breakdown by model/provider."""
+        return litellm.get_spend_report()
+
+# Alternative: Using Instructor for structured output (recommended)
+import instructor
+from openai import AsyncOpenAI
+
+class InstructorScoringService:
+    """
+    Structured LLM output using Instructor + LiteLLM.
+    Best for: Type-safe structured responses.
+    """
+    
+    def __init__(self):
+        # Patch OpenAI client with Instructor for structured output
+        self.client = instructor.from_openai(
+            AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=os.getenv("OPENROUTER_API_KEY")
+            )
+        )
+    
+    async def score_assessment(
+        self,
+        prompt: str,
+        system_prompt: str,
+    ) -> AssessmentScore:
+        """
+        Get structured, type-safe response using Instructor.
+        
+        Benefits:
+        - Automatic retries if JSON parsing fails
+        - Pydantic validation
+        - Type hints throughout
+        """
+        return await self.client.chat.completions.create(
+            model="google/gemini-flash-1.5",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            response_model=AssessmentScore,  # Pydantic model
+            temperature=0.3,
+        )
+
+# Pydantic model for structured output
+from pydantic import BaseModel, Field
+from typing import Literal
+
+class StrandScore(BaseModel):
+    strand: Literal["physical", "linguistic", "cognitive", "social_emotional"]
+    band: Literal["emerging", "expected", "exceeding"]
+    confidence: float = Field(ge=0, le=1)
+    justification: str
+
+class AssessmentScore(BaseModel):
+    student_age: int
+    mode: Literal["explaining", "presenting", "persuading"]
+    strand_scores: list[StrandScore]
+    overall_band: Literal["emerging", "expected", "exceeding"]
+    strengths: list[str]
+    next_steps: list[str]
+```
+
+### When to Use LangChain
+
+LangChain may be worth considering in the future if you need:
+- **Complex multi-step assessment workflows** (e.g., iterative refinement)
+- **RAG (Retrieval-Augmented Generation)** for benchmark lookups
+- **Memory/conversation history** for student progress tracking
+- **Custom agent behaviors** for specialized assessment types
+
+**Current Recommendation**: Start with **LiteLLM + Instructor** for simplicity and cost control. Migrate to LangChain only if complex agent workflows become necessary in Phase 2 or 3.
+
+### Comparison: Simple Implementation vs LiteLLM
+
+```python
+# Option 1: Direct OpenRouter (current V2 approach)
+# Pros: Full control, no dependencies
+# Cons: Manual fallback logic, no cost tracking
+
+# Option 2: LiteLLM (recommended)
+# Pros: Automatic fallback, cost tracking, unified API
+# Cons: Additional dependency
+
+# Option 3: LangChain
+# Pros: Complex workflows, agents, memory
+# Cons: Overkill for current needs, steeper learning curve
+```
+
+**Verdict**: Use **LiteLLM with Instructor** for structured output. It provides the right balance of simplicity, cost optimization, and reliability without the overhead of LangChain.

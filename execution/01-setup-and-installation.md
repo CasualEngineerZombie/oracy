@@ -238,12 +238,39 @@ which python
 # Install all dependencies including dev
 uv pip install -e ".[dev]"
 
-# Verify installation
+# Verify core installation
 python -c "import django; print(django.VERSION)"
 python -c "import djangorestframework; print('DRF installed')"
 ```
 
-### 4. Create Local Settings File
+### 4. Install AI/ML Dependencies (V2)
+
+Install the cost-optimized AI stack:
+
+```bash
+# STT: WhisperX with distil-large-v3 support
+uv pip install whisperx
+
+# LLM: LiteLLM for multi-provider routing with cost tracking
+uv pip install litellm
+
+# Structured Output: Instructor for type-safe LLM responses
+uv pip install instructor
+
+# Verify installations
+python -c "import whisperx; print('WhisperX installed')"
+python -c "import litellm; print('LiteLLM installed')"
+python -c "import instructor; print('Instructor installed')"
+```
+
+**V2 AI Stack:**
+- **WhisperX**: STT with distil-large-v3 (6x faster, int8 quantization)
+- **LiteLLM**: Cost tracking + OpenRouter integration
+- **Instructor**: Type-safe structured output
+
+**Cost Savings**: ~80% reduction vs OpenAI/Anthropic APIs
+
+### 5. Create Local Settings File
 
 ```bash
 # Create development settings
@@ -255,7 +282,7 @@ cp config/settings/development.py.example config/settings/development.py
 
 Edit `config/settings/development.py` with local database credentials.
 
-### 5. Verify Backend Setup
+### 6. Verify Backend Setup
 
 ```bash
 # Check Django commands work
@@ -363,6 +390,27 @@ From project root, run:
 | AWS CLI | `aws --version` | aws-cli/2.x.x |
 | Backend deps | `cd server && python -c "import django"` | No error |
 | Frontend deps | `cd client && npm list react` | Shows version |
+| **WhisperX** | `python -c "import whisperx; print('✓')"` | ✓ |
+| **LiteLLM** | `python -c "import litellm; print('✓')"` | ✓ |
+| **Instructor** | `python -c "import instructor; print('✓')"` | ✓ |
+
+### Verify AI Pipeline Components
+
+```bash
+cd server
+
+# Test WhisperX import
+python -c "import whisperx; print('WhisperX:', whisperx.__version__)"
+
+# Test LiteLLM
+python -c "import litellm; print('LiteLLM ready')"
+
+# Test Instructor
+python -c "import instructor; from pydantic import BaseModel; print('Instructor ready')"
+
+# Check GPU availability (optional)
+python -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+```
 
 ### Start Development Environment
 

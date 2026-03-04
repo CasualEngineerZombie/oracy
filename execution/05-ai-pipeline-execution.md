@@ -29,11 +29,11 @@ Video Upload → STT → Feature Extraction → Benchmarking → Evidence Gen �
 
 | Stage | Service | Input | Output | Duration |
 |-------|---------|-------|--------|----------|
-| 1. Speech-to-Text | OpenAI Whisper | Audio/Video | Transcript JSON | 10-30s |
+| 1. Speech-to-Text | WhisperX (distil-large-v3) | Audio/Video | Transcript JSON | 10-30s |
 | 2. Feature Extraction | Python/NLP | Transcript | FeatureSignals | 2-5s |
 | 3. Benchmarking | BDL Engine | Features + BDL | Evidence Matches | 1-3s |
 | 4. Evidence Generation | Deterministic | Matches | EvidenceCandidates | 1-2s |
-| 5. LLM Scoring | GPT-4o/Claude | Candidates + Rubric | DraftReport | 15-45s |
+| 5. LLM Scoring | LiteLLM + Instructor | Candidates + Rubric | DraftReport | 15-45s |
 
 ---
 
@@ -95,28 +95,53 @@ curl -X POST http://localhost:8000/api/assessments/ \
 
 ## Individual Stage Execution
 
-### Stage 1: Speech-to-Text (STT)
+### Stage 1: Speech-to-Text (STT) - WhisperX
 
 ```bash
 # Via Django shell
 python manage.py shell
 
->>> from apps.analysis.services.stt import WhisperSTTService
+>>> from apps.analysis.services.stt import WhisperXSTTService
 >>> from apps.analysis.models import Recording
 
 >>> recording = Recording.objects.get(id='recording-uuid')
->>> stt_service = WhisperSTTService()
+
+# Option 1: RunPod GPU (production)
+>>> stt_service = WhisperXSTTService(
+...     provider='runpod',
+...     api_key=settings.RUNPOD_API_KEY,
+...     endpoint_id=settings.RUNPOD_ENDPOINT_ID
+... )
+
+# Option 2: Local CPU (development)
+# >>> stt_service = WhisperXSTTService(
+# ...     provider='local',
+# ...     model='base',  # or 'tiny' for faster processing
+# ...     device='cpu',
+# ...     compute_type='int8'
+# ... )
 
 # Process audio
->>> transcript = stt_service.transcribe(recording.audio_file.path)
+>>> transcript = stt_service.transcribe(
+...     recording.audio_file.path,
+...     model='distil-large-v3',  # 6x faster than large-v3
+...     batch_size=4,
+...     compute_type='int8'  # 40% VRAM reduction
+... )
 >>> print(transcript.full_text)
 >>> print(f"Duration: {transcript.duration_seconds}s")
->>> print(f"Word count: {len(transcript.words)}")
+>>> print(f"Word count: {len(transcript.all_words())}")
 
 # Save to database
 >>> recording.transcript = transcript.to_dict()
 >>> recording.save()
 ```
+
+**WhisperX Features:**
+- **distil-large-v3**: 6x faster than large-v3, <1% accuracy loss
+- **int8 quantization**: 40% VRAM reduction (~2.8GB vs ~10GB)
+- **Batch processing**: 4-16 files simultaneously
+- **Forced alignment**: Character-level accurate word timestamps
 
 ### Stage 2: Feature Extraction
 
@@ -192,16 +217,36 @@ candidates = generator.generate(
 # - descriptor: What benchmark it demonstrates
 ```
 
-### Stage 5: LLM Scoring
+### Stage 5: LLM Scoring - LiteLLM + Instructor
 
 ```python
-from apps.analysis.pipeline.score_llm import LLMScorer
+from apps.analysis.pipeline.score_llm import LiteLLMScorer
+from pydantic import BaseModel
 
-scorer = LLMScorer(model='gpt-4o')
+# Define structured output model
+class AssessmentScore(BaseModel):
+    strand_scores: dict  # physical, linguistic, cognitive, social_emotional
+    evidence_clips: list
+    strengths: list[str]
+    next_steps: list[str]
+    practice_goals: list[str]
+    confidence: dict
+
+# Initialize scorer with LiteLLM + Instructor
+scorer = LiteLLMScorer(
+    model='openrouter/google/gemini-flash-1.5',  # Cheapest option
+    fallback_models=[
+        'openrouter/anthropic/claude-3.5-haiku',
+        'openrouter/openai/gpt-4o-mini'
+    ]
+)
+
+# Score with automatic structured output
 report = scorer.score(
     evidence_candidates=candidates,
     mode='presenting',
-    age_band='11-12'
+    age_band='11-12',
+    response_model=AssessmentScore  # Instructor validates output
 )
 
 # Report contains:
@@ -211,7 +256,16 @@ report = scorer.score(
 # - next_steps: 3 improvement areas
 # - practice_goals: Student-friendly goals
 # - confidence: Confidence score per strand
+
+# Check actual cost
+print(f"Scoring cost: ${scorer.last_request_cost:.6f}")
 ```
+
+**LiteLLM + Instructor Benefits:**
+- **Cost tracking**: Monitor spend per request
+- **Auto-fallback**: Switches provider if one fails
+- **Type safety**: Instructor validates JSON output
+- **Multi-provider**: OpenRouter aggregates cheapest options
 
 ---
 

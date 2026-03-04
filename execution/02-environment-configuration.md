@@ -88,16 +88,28 @@ AWS_S3_BUCKET_NAME=oracy-dev-uploads
 AWS_S3_REGION_NAME=ap-southeast-1
 
 # --------------------------------------------
-# AI/ML Services
+# AI/ML Services (V2 - Cost-Optimized)
 # --------------------------------------------
-# OpenAI
-OPENAI_API_KEY=sk-...
 
-# Anthropic (Claude)
-ANTHROPIC_API_KEY=sk-ant-...
+# STT Provider: RunPod Serverless GPU (WhisperX)
+RUNPOD_API_KEY=your-runpod-api-key
+RUNPOD_ENDPOINT_ID=your-endpoint-id
 
-# AWS Transcribe (uses AWS credentials above)
-USE_AWS_TRANSCRIBE=False
+# Alternative STT: Local WhisperX (development)
+WHISPER_MODEL=distil-large-v3  # or 'base' for CPU
+WHISPER_DEVICE=cuda  # or 'cpu' for local dev
+WHISPER_COMPUTE_TYPE=int8  # int8 for VRAM reduction
+
+# LLM Provider: OpenRouter (aggregates multiple providers)
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# LiteLLM Configuration
+LITELLM_MODEL=openrouter/google/gemini-flash-1.5
+LITELLM_FALLBACK_MODELS=openrouter/anthropic/claude-3.5-haiku,openrouter/openai/gpt-4o-mini
+
+# Optional: Local Ollama (zero-cost fallback)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
 
 # --------------------------------------------
 # Email (SMTP)
@@ -147,7 +159,14 @@ ENABLE_ANALYTICS=False
 | `DJANGO_SECRET_KEY` | Django security | Generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DATABASE_URL` | Database connection | `postgres://user:pass@host:5432/db` |
 | `REDIS_URL` | Cache & Celery broker | `redis://localhost:6379/0` |
-| `OPENAI_API_KEY` | STT & LLM services | `sk-...` |
+| `RUNPOD_API_KEY` | STT service (WhisperX) | Get from runpod.io |
+| `RUNPOD_ENDPOINT_ID` | RunPod serverless endpoint | `abc123-def456-...` |
+| `OPENROUTER_API_KEY` | LLM service (multi-provider) | Get from openrouter.ai |
+
+**V2 Changes:**
+- ❌ Removed: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+- ✅ Added: `RUNPOD_API_KEY`, `OPENROUTER_API_KEY`
+- 💰 Savings: ~80% reduction in AI costs
 | `AWS_ACCESS_KEY_ID` | S3 & Transcribe | `AKIA...` |
 | `AWS_SECRET_ACCESS_KEY` | AWS auth | `...` |
 

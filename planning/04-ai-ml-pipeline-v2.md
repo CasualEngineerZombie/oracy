@@ -8,7 +8,7 @@ This document describes the cost-optimized AI/ML pipeline for Oracy AI, replacin
 
 | Service | V1 (Cloud) | V2 (Self-Hosted) | Savings |
 |---------|------------|------------------|---------|
-| Speech-to-Text | OpenAI Whisper API ($0.006/min) + AWS Transcribe ($0.024/min) | Self-hosted Whisper (faster-whisper) | ~95% |
+| Speech-to-Text | OpenAI Whisper API ($0.006/min) + AWS Transcribe ($0.024/min) | Self-hosted WhisperX (distil-large-v3) | ~95% |
 | GPU Infrastructure | N/A (pay-per-use) | RunPod/Vast.ai GPU instances | ~80% |
 | Estimated Monthly Cost (1,000 assessments) | ~$1,500 | ~$300 | ~80% |
 
@@ -302,8 +302,8 @@ runpod.serverless.start({"handler": handler})
 
 **Key WhisperX Features Used:**
 - **distil-large-v3**: 6x faster than large-v3, <1% accuracy loss
-- **int8 quantization**: Reduces VRAM from ~10GB to ~5.5GB
-- **Batch processing**: Process 4-16 audio files simultaneously
+- **int8 quantization**: 40% VRAM reduction (2.8GB vs 10GB)
+- **Batch processing**: 4-16 files simultaneously per GPU
 - **Forced alignment**: Character-level accurate word timestamps
 - **Language-specific alignment models**: Better accuracy per language
 
@@ -313,6 +313,7 @@ runpod.serverless.start({"handler": handler})
 - GPU available on-demand
 - Same accuracy as OpenAI API
 - Word-level timestamps included
+- Batch processing for higher throughput
 
 **Cons:**
 - Cold start latency (~2-5 seconds for first request)
@@ -328,9 +329,9 @@ For higher volumes, rent GPU instances from Vast.ai (cheaper than AWS):
 import requests
 from typing import Optional
 
-class VastAIWhisperService:
+class VastAIWhisperXService:
     """
-    Self-hosted Whisper on Vast.ai GPU instances.
+    Self-hosted WhisperX on Vast.ai GPU instances.
     Best for high-volume processing with predictable costs.
     """
     
@@ -342,7 +343,8 @@ class VastAIWhisperService:
     async def transcribe(
         self,
         audio_path: str,
-        model_size: str = "base"
+        model: str = "distil-large-v3",
+        batch_size: int = 16  # Higher for dedicated GPU
     ) -> Transcript:
         """
         Transcribe using dedicated Vast.ai instance.
@@ -353,7 +355,11 @@ class VastAIWhisperService:
         """
         with open(audio_path, 'rb') as f:
             files = {'audio': f}
-            data = {'model': model_size}
+            data = {
+                'model': model,
+                'batch_size': batch_size,
+                'compute_type': 'int8'
+            }
             
             response = requests.post(
                 f"{self.base_url}/transcribe",
@@ -368,21 +374,23 @@ class VastAIWhisperService:
 **Vast.ai Instance Setup** (Docker Compose):
 
 ```yaml
-# docker-compose.whisper-gpu.yml
+# docker-compose.whisperx-vast.yml
 version: '3.8'
 
 services:
-  whisper-api:
-    image: oracy/whisper-gpu:latest
+  whisperx-api:
+    image: oracy/whisperx-gpu:latest
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - MODEL_SIZE=base  # tiny, base, small, medium, large-v3
-      - WORKERS=2
+      - WHISPER_MODEL=distil-large-v3
+      - COMPUTE_TYPE=int8
+      - BATCH_SIZE=16  # Higher for dedicated GPU
+      - LANGUAGE=en
     ports:
       - "8000:8000"
     volumes:
-      - model-cache:/root/.cache/whisper
+      - model-cache:/root/.cache/whisperx
     deploy:
       resources:
         reservations:
@@ -397,7 +405,7 @@ volumes:
 
 **Cost Estimate:**
 - RTX 3090 on Vast.ai: ~$0.30/hour
-- Can process ~150 assessments/hour (avg 2 min each)
+- Can process ~150 assessments/hour (avg 2 min each, batch_size=16)
 - Cost per assessment: ~$0.002
 - vs OpenAI API: $0.012 per 2-minute assessment
 - **Savings: ~83%**
@@ -695,11 +703,11 @@ ollama serve
 ## Infrastructure Changes Summary
 
 ### Removed Services
-- ~~AWS Transcribe~~ → Self-hosted Whisper (faster-whisper)
+- ~~AWS Transcribe~~ → Self-hosted WhisperX (distil-large-v3)
 - ~~OpenAI Whisper API~~ → RunPod/Vast.ai self-hosted
 
 ### Added Services
-- RunPod serverless GPU endpoints
+- RunPod serverless GPU endpoints with WhisperX
 - Vast.ai GPU instances (optional)
 - Ollama local LLM server (optional)
 
@@ -719,7 +727,7 @@ ollama serve
 ### Phase 1: RunPod Setup (Week 1)
 
 1. Create RunPod account
-2. Build and deploy Whisper worker
+2. Build and deploy WhisperX worker with distil-large-v3
 3. Update environment variables
 4. Test transcription pipeline
 
@@ -748,10 +756,10 @@ Run parallel scoring to validate V2 against V1:
 ```python
 async def validate_stt_accuracy(sample_audio_paths: List[str]):
     """
-    Compare V1 (OpenAI) vs V2 (Self-hosted) transcription accuracy.
+    Compare V1 (OpenAI) vs V2 (Self-hosted WhisperX) transcription accuracy.
     """
     v1_service = WhisperAPIService()
-    v2_service = RunPodWhisperService()
+    v2_service = RunPodWhisperXService()
     
     results = []
     for path in sample_audio_paths:
@@ -777,90 +785,19 @@ async def validate_stt_accuracy(sample_audio_paths: List[str]):
 
 ---
 
-## Appendix: Docker Images
-
-### WhisperX GPU Worker (RunPod)
-
-```dockerfile
-# Dockerfile.whisperx-gpu
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-dev \
-    ffmpeg \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-# Pre-download models (optional, speeds up cold start)
-RUN python3 -c "import whisperx; whisperx.load_model('distil-large-v3', device='cpu', compute_type='int8')"
-
-COPY stt/runpod_worker.py .
-
-# Use flashboot for faster cold starts
-ENV RUNPOD_FLASHBOOT_ACTIVE="true"
-
-CMD ["python3", "-m", "runpod.serverless.start", "--handler", "runpod_worker.handler"]
-```
-
-**requirements.txt:**
-```
-whisperx>=3.1.1
-torch>=2.0.0
-torchaudio>=2.0.0
-runpod>=1.6.0
-requests>=2.31.0
-numpy>=1.24.0
-```
-
-**Key Optimizations:**
-- Pre-download `distil-large-v3` model during build (faster cold start)
-- Use `int8` quantization (40% VRAM reduction)
-- Enable RunPod flashboot (reduces cold start from 10s to 2s)
-- Cache alignment models for repeated use
-
-### Ollama Server
-
-```dockerfile
-# Dockerfile.ollama
-FROM ollama/ollama:latest
-
-# Pre-download models
-RUN ollama serve & \
-    sleep 5 && \
-    ollama pull llama3.2:3b && \
-    ollama pull qwen2.5:7b && \
-    pkill ollama
-
-EXPOSE 11434
-
-ENTRYPOINT ["ollama", "serve"]
-```
-
----
-
 ## LLM Orchestration Layer Recommendations
 
-### Recommendation: Use LiteLLM (Not LangChain)
+### LLM Orchestration: LiteLLM + Instructor
 
-For Oracy AI's specific use case, **LiteLLM** is recommended over LangChain for the following reasons:
+For Oracy AI V2, use **LiteLLM** with **Instructor** for structured output:
 
-| Aspect | LangChain | LiteLLM | Recommendation |
-|--------|-----------|---------|----------------|
-| **Primary Use** | Complex agents, RAG, chains | Unified API across providers | LiteLLM - simpler |
-| **Cost Tracking** | Limited | Built-in spend tracking | LiteLLM |
-| **Fallback Logic** | Manual implementation | Automatic fallback | LiteLLM |
-| **Provider Routing** | Manual | Automatic load balancing | LiteLLM |
-| **Structured Output** | Pydantic integration | Instructor/LiteLLM native | Either |
-| **Learning Curve** | Steep | Minimal | LiteLLM |
-| **Overhead** | Heavy abstractions | Thin wrapper | LiteLLM |
+| Feature | LiteLLM + Instructor | Notes |
+|---------|---------------------|-------|
+| **Cost Tracking** | ✅ Built-in | Critical for budget monitoring |
+| **Multi-Provider** | ✅ Automatic fallback | OpenRouter + backups |
+| **Structured Output** | ✅ Type-safe | Pydantic validation |
+| **Learning Curve** | ✅ Minimal | Simple abstractions |
+| **Rate Limit Handling** | ✅ Built-in | Auto retry with backoff |
 
 **Why LiteLLM for Oracy AI:**
 1. **Cost Optimization Focus**: LiteLLM has built-in cost tracking and spend monitoring - critical for your cost-reduction goals
@@ -998,16 +935,6 @@ class AssessmentScore(BaseModel):
     next_steps: list[str]
 ```
 
-### When to Use LangChain
-
-LangChain may be worth considering in the future if you need:
-- **Complex multi-step assessment workflows** (e.g., iterative refinement)
-- **RAG (Retrieval-Augmented Generation)** for benchmark lookups
-- **Memory/conversation history** for student progress tracking
-- **Custom agent behaviors** for specialized assessment types
-
-**Current Recommendation**: Start with **LiteLLM + Instructor** for simplicity and cost control. Migrate to LangChain only if complex agent workflows become necessary in Phase 2 or 3.
-
 ### Comparison: Simple Implementation vs LiteLLM
 
 ```python
@@ -1015,13 +942,111 @@ LangChain may be worth considering in the future if you need:
 # Pros: Full control, no dependencies
 # Cons: Manual fallback logic, no cost tracking
 
-# Option 2: LiteLLM (recommended)
-# Pros: Automatic fallback, cost tracking, unified API
+# Option 2: LiteLLM + Instructor (recommended)
+# Pros: Automatic fallback, cost tracking, unified API, type-safe output
 # Cons: Additional dependency
-
-# Option 3: LangChain
-# Pros: Complex workflows, agents, memory
-# Cons: Overkill for current needs, steeper learning curve
 ```
 
-**Verdict**: Use **LiteLLM with Instructor** for structured output. It provides the right balance of simplicity, cost optimization, and reliability without the overhead of LangChain.
+
+
+### V2 Final Recommendation: LiteLLM + Instructor
+
+**For Oracy AI V2 MVP, use:**
+
+```python
+# Stack: LiteLLM + Instructor + Pydantic
+import litellm
+import instructor
+from pydantic import BaseModel
+
+class AssessmentScore(BaseModel):
+    band: Literal["emerging", "expected", "exceeding"]
+    confidence: float
+    justification: str
+
+# LiteLLM for provider routing + cost tracking
+# Instructor for type-safe structured output
+```
+
+| Component | Choice | Reason |
+|-----------|--------|--------|
+| **Provider Management** | **LiteLLM** | Cost tracking, auto-fallback, OpenRouter support |
+| **Structured Output** | **Instructor** | Type-safe, automatic retries, Pydantic validation |
+| **Data Models** | **Pydantic** | You're already using it, perfect integration |
+
+**Why this stack for V2:**
+1. ✅ **Cost tracking** - Critical for budget constraints
+2. ✅ **Multi-provider fallback** - OpenRouter + auto-failover
+3. ✅ **Type safety** - Instructor validates outputs automatically
+4. ✅ **Simple** - No agent complexity needed for MVP
+
+---
+
+---
+
+## Appendix: Docker Images
+
+### WhisperX GPU Worker (RunPod)
+
+```dockerfile
+# Dockerfile.whisperx-gpu
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-dev \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Pre-download models (optional, speeds up cold start)
+RUN python3 -c "import whisperx; whisperx.load_model('distil-large-v3', device='cpu', compute_type='int8')"
+
+COPY stt/runpod_worker.py .
+
+# Use flashboot for faster cold starts
+ENV RUNPOD_FLASHBOOT_ACTIVE="true"
+
+CMD ["python3", "-m", "runpod.serverless.start", "--handler", "runpod_worker.handler"]
+```
+
+**requirements.txt:**
+```
+whisperx>=3.1.1
+torch>=2.0.0
+torchaudio>=2.0.0
+runpod>=1.6.0
+requests>=2.31.0
+numpy>=1.24.0
+```
+
+**Key Optimizations:**
+- Pre-download `distil-large-v3` model during build (faster cold start)
+- Use `int8` quantization (40% VRAM reduction)
+- Enable RunPod flashboot (reduces cold start from 10s to 2s)
+- Cache alignment models for repeated use
+
+### Ollama Server
+
+```dockerfile
+# Dockerfile.ollama
+FROM ollama/ollama:latest
+
+# Pre-download models
+RUN ollama serve & \
+    sleep 5 && \
+    ollama pull llama3.2:3b && \
+    ollama pull qwen2.5:7b && \
+    pkill ollama
+
+EXPOSE 11434
+
+ENTRYPOINT ["ollama", "serve"]
+```

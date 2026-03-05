@@ -391,22 +391,29 @@ def _mark_assessment_error(assessment_id: str, error_message: str):
 
 
 def _download_from_s3(bucket: str, key: str) -> str:
-    """Download file from S3 to temporary location."""
-    import boto3
+    """
+    Download file from S3 to temporary location.
     
-    s3 = boto3.client('s3')
+    Uses the centralized S3StorageService for better error handling
+    and configuration management.
+    """
+    from apps.core.storage import get_storage_service
     
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        s3.download_file(bucket, key, tmp.name)
-        return tmp.name
+    service = get_storage_service()
+    return service.download_file(key=key, bucket=bucket)
 
 
 def _upload_to_s3(bucket: str, key: str, file_path: str):
-    """Upload file to S3."""
-    import boto3
+    """
+    Upload file to S3.
     
-    s3 = boto3.client('s3')
-    s3.upload_file(file_path, bucket, key)
+    Uses the centralized S3StorageService for better error handling
+    and security (always private ACL).
+    """
+    from apps.core.storage import get_storage_service
+    
+    service = get_storage_service()
+    service.upload_file(local_path=file_path, key=key, bucket=bucket)
 
 
 # Convenience function to start processing

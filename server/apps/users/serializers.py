@@ -140,6 +140,22 @@ class TokenResponseSerializer(serializers.Serializer):
     user = UserSerializer()
 
 
+class TokenRefreshResponseSerializer(serializers.Serializer):
+    """
+    Serializer for token refresh response.
+    """
+    access_token = serializers.CharField()
+    token_type = serializers.CharField(default="Bearer")
+    expires_in = serializers.IntegerField()
+
+
+class RefreshTokenSerializer(serializers.Serializer):
+    """
+    Serializer for refresh token request.
+    """
+    refresh_token = serializers.CharField(help_text="The refresh token received during login")
+
+
 class PasswordChangeSerializer(serializers.Serializer):
     """
     Serializer for password change.

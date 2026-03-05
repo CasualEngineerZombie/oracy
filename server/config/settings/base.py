@@ -283,6 +283,33 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]",
+    "SCHEMA_PATH_PREFIX_TRIM": True,
+    "SERVERS": [
+        {"url": "/api/v1", "description": "API Version 1"},
+    ],
+    "TAGS": [
+        {"name": "Authentication", "description": "User authentication endpoints"},
+        {"name": "Users", "description": "User management endpoints"},
+        {"name": "Students", "description": "Student management endpoints"},
+        {"name": "Assessments", "description": "Assessment management endpoints"},
+        {"name": "Analysis", "description": "Speech analysis endpoints"},
+        {"name": "Reports", "description": "Reporting endpoints"},
+        {"name": "Benchmarks", "description": "Benchmark data endpoints"},
+    ],
+    "SECURITY": [
+        {"bearerAuth": []},
+    ],
+    "COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            },
+        },
+    },
+    "EXAMPLES_COMPONENT_SPLIT_REQUEST": True,
+    "POSTPROCESSING_HOOKS": ["drf_spectacular.hooks.postprocess_schema_enums"],
 }
 
 # =============================================================================

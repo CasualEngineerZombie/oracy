@@ -5,6 +5,7 @@ Views for the users app.
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -21,7 +22,9 @@ from .models import School
 from .serializers import (
     LoginSerializer,
     PasswordChangeSerializer,
+    RefreshTokenSerializer,
     SchoolSerializer,
+    TokenRefreshResponseSerializer,
     TokenResponseSerializer,
     UserCreateSerializer,
     UserProfileSerializer,
@@ -37,7 +40,52 @@ class AuthViewSet(viewsets.GenericViewSet):
     Authentication viewset for login, logout, and token refresh.
     """
     permission_classes = [AllowAny]
-    
+
+    @extend_schema(
+        summary="User Login",
+        description="Authenticate user with email and password to receive JWT tokens.",
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=TokenResponseSerializer,
+                description="Login successful",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={
+                            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "token_type": "Bearer",
+                            "expires_in": 3600,
+                            "user": {
+                                "id": "550e8400-e29b-41d4-a716-446655440000",
+                                "email": "user@example.com",
+                                "first_name": "John",
+                                "last_name": "Doe",
+                                "full_name": "John Doe",
+                                "role": "teacher",
+                                "school": None,
+                                "subject": "Mathematics",
+                                "is_active": True,
+                                "is_verified": True,
+                                "date_joined": "2024-01-01T00:00:00Z",
+                            },
+                        },
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(
+                description="Invalid credentials",
+                examples=[
+                    OpenApiExample(
+                        "Invalid Credentials",
+                        value={"error": "Invalid credentials"},
+                    ),
+                ],
+            ),
+        },
+        tags=["Authentication"],
+    )
     @action(detail=False, methods=["post"])
     def login(self, request):
         """
@@ -75,6 +123,50 @@ class AuthViewSet(viewsets.GenericViewSet):
             "user": UserSerializer(user).data,
         })
     
+    @extend_schema(
+        summary="Refresh Access Token",
+        description="Generate a new access token using a valid refresh token.",
+        request=RefreshTokenSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=TokenRefreshResponseSerializer,
+                description="Token refresh successful",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={
+                            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                            "token_type": "Bearer",
+                            "expires_in": 3600,
+                        },
+                    ),
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Refresh token is required",
+                examples=[
+                    OpenApiExample(
+                        "Missing Token",
+                        value={"error": "Refresh token is required"},
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(
+                description="Invalid or expired token",
+                examples=[
+                    OpenApiExample(
+                        "Expired Token",
+                        value={"error": "Refresh token has expired"},
+                    ),
+                    OpenApiExample(
+                        "Invalid Token",
+                        value={"error": "Invalid token"},
+                    ),
+                ],
+            ),
+        },
+        tags=["Authentication"],
+    )
     @action(detail=False, methods=["post"])
     def refresh(self, request):
         """
@@ -121,6 +213,26 @@ class AuthViewSet(viewsets.GenericViewSet):
             "expires_in": settings.JWT_ACCESS_TOKEN_LIFETIME * 60,
         })
     
+    @extend_schema(
+        summary="User Logout",
+        description="Logout user. Client should discard stored tokens. Requires authentication.",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                description="Logout successful",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={"message": "Successfully logged out"},
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(
+                description="Authentication required",
+            ),
+        },
+        tags=["Authentication"],
+    )
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def logout(self, request):
         """
@@ -129,6 +241,41 @@ class AuthViewSet(viewsets.GenericViewSet):
         return Response({"message": "Successfully logged out"})
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List Users",
+        description="Get a paginated list of users. Admins see all users, teachers see school users.",
+    ),
+    create=extend_schema(
+        summary="Create User",
+        description="Create a new user. Only admins can create users.",
+        request=UserCreateSerializer,
+        responses={201: UserSerializer},
+    ),
+    retrieve=extend_schema(
+        summary="Get User",
+        description="Retrieve a specific user by ID.",
+        responses={200: UserSerializer},
+    ),
+    update=extend_schema(
+        summary="Update User",
+        description="Fully update a user. Only admins can update any user.",
+        request=UserUpdateSerializer,
+        responses={200: UserSerializer},
+    ),
+    partial_update=extend_schema(
+        summary="Partial Update User",
+        description="Partially update a user. Only admins can update any user.",
+        request=UserUpdateSerializer,
+        responses={200: UserSerializer},
+    ),
+    destroy=extend_schema(
+        summary="Delete User",
+        description="Delete a user. Only admins can delete users.",
+        responses={204: None},
+    ),
+)
+@extend_schema(tags=["Users"])
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet for user management.
@@ -173,6 +320,11 @@ class UserViewSet(viewsets.ModelViewSet):
             # Students can only see themselves
             return User.objects.filter(id=user.id)
     
+    @extend_schema(
+        summary="Get Current User",
+        description="Get the profile of the currently authenticated user.",
+        responses={200: UserProfileSerializer},
+    )
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def me(self, request):
         """
@@ -180,7 +332,13 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data)
-    
+
+    @extend_schema(
+        summary="Update Current User Profile",
+        description="Update the profile of the currently authenticated user.",
+        request=UserUpdateSerializer,
+        responses={200: UserProfileSerializer},
+    )
     @action(detail=False, methods=["patch"], permission_classes=[IsAuthenticated])
     def update_profile(self, request):
         """
@@ -193,9 +351,34 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        
+
         return Response(UserProfileSerializer(request.user).data)
     
+    @extend_schema(
+        summary="Change Password",
+        description="Change the password of the currently authenticated user.",
+        request=PasswordChangeSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Password changed successfully",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={"message": "Password changed successfully"},
+                    ),
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Invalid password",
+                examples=[
+                    OpenApiExample(
+                        "Wrong Password",
+                        value={"error": "Current password is incorrect"},
+                    ),
+                ],
+            ),
+        },
+    )
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def change_password(self, request):
         """
@@ -203,23 +386,24 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         serializer = PasswordChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         user = request.user
-        
+
         # Check old password
         if not user.check_password(serializer.validated_data["old_password"]):
             return Response(
                 {"error": "Current password is incorrect"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # Set new password
         user.set_password(serializer.validated_data["new_password"])
         user.save()
-        
+
         return Response({"message": "Password changed successfully"})
 
 
+@extend_schema(tags=["Schools"])
 class SchoolViewSet(viewsets.ModelViewSet):
     """
     ViewSet for school management.

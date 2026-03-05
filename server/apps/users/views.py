@@ -1,5 +1,10 @@
 """
 Views for the users app.
+
+Refactored to follow Django Styleguide:
+- Business logic moved to services
+- Data fetching moved to selectors
+- Views are thin and only handle HTTP concerns
 """
 
 import jwt
@@ -12,13 +17,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.authentication import (
-    generate_access_token,
-    generate_refresh_token,
-)
 from apps.core.permissions import IsAdmin, IsAdminOrTeacher
 
 from .models import School
+from .selectors import user_list, user_list_admins
 from .serializers import (
     LoginSerializer,
     PasswordChangeSerializer,
@@ -30,6 +32,13 @@ from .serializers import (
     UserProfileSerializer,
     UserSerializer,
     UserUpdateSerializer,
+)
+from .services import (
+    user_authenticate,
+    user_change_password,
+    user_create,
+    user_generate_tokens,
+    user_refresh_access_token,
 )
 
 User = get_user_model()
@@ -90,6 +99,7 @@ class AuthViewSet(viewsets.GenericViewSet):
     def login(self, request):
         """
         Authenticate user and return JWT tokens.
+        Uses user_authenticate and user_generate_tokens services.
         """
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -97,23 +107,17 @@ class AuthViewSet(viewsets.GenericViewSet):
         email = serializer.validated_data["email"]
         password = serializer.validated_data["password"]
         
-        try:
-            user = User.objects.get(email=email, is_active=True)
-        except User.DoesNotExist:
+        # Use service for authentication logic
+        user = user_authenticate(email=email, password=password)
+        
+        if not user:
             return Response(
                 {"error": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        if not user.check_password(password):
-            return Response(
-                {"error": "Invalid credentials"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        
-        # Generate tokens
-        access_token = generate_access_token(user)
-        refresh_token = generate_refresh_token(user)
+        # Use service for token generation
+        access_token, refresh_token = user_generate_tokens(user=user)
         
         return Response({
             "access_token": access_token,
@@ -171,6 +175,7 @@ class AuthViewSet(viewsets.GenericViewSet):
     def refresh(self, request):
         """
         Refresh access token using refresh token.
+        Uses user_refresh_access_token service.
         """
         refresh_token = request.data.get("refresh_token")
         
@@ -181,17 +186,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             )
         
         try:
-            payload = jwt.decode(
-                refresh_token,
-                settings.SECRET_KEY,
-                algorithms=["HS256"]
-            )
-            
-            if payload.get("type") != "refresh":
-                raise jwt.InvalidTokenError("Invalid token type")
-            
-            user_id = payload.get("user_id")
-            user = User.objects.get(id=user_id, is_active=True)
+            # Use service for token refresh logic
+            access_token = user_refresh_access_token(refresh_token=refresh_token)
             
         except jwt.ExpiredSignatureError:
             return Response(
@@ -203,9 +199,6 @@ class AuthViewSet(viewsets.GenericViewSet):
                 {"error": "Invalid token"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        
-        # Generate new access token
-        access_token = generate_access_token(user)
         
         return Response({
             "access_token": access_token,
@@ -262,13 +255,11 @@ class AuthViewSet(viewsets.GenericViewSet):
     def register(self, request):
         """
         Register a new user. Only works for initial setup when no admin exists.
+        Uses user_create service.
         """
         # Check if this is initial setup (no admin users exist)
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-
-        # If admin users already exist, require admin permission to create more
-        if User.objects.filter(role="admin").exists():
+        # Use selector for checking admin existence
+        if user_list_admins().exists():
             return Response(
                 {"error": "Registration is disabled. Contact an administrator to create an account."},
                 status=status.HTTP_403_FORBIDDEN
@@ -277,10 +268,17 @@ class AuthViewSet(viewsets.GenericViewSet):
         # Allow first user to be created (will be admin)
         serializer = UserCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        # Create user with admin role for initial setup
-        user = User.objects.create_user(**serializer.validated_data)
-        user.role = "admin"
+        
+        # Use service for user creation
+        user = user_create(
+            email=serializer.validated_data["email"],
+            password=serializer.validated_data["password"],
+            first_name=serializer.validated_data.get("first_name", ""),
+            last_name=serializer.validated_data.get("last_name", ""),
+            role="admin",  # First user is always admin
+        )
+        
+        # Mark as verified for initial admin
         user.is_verified = True
         user.save()
 
@@ -325,8 +323,8 @@ class AuthViewSet(viewsets.GenericViewSet):
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet for user management.
+    Uses selectors for data fetching.
     """
-    queryset = User.objects.all()
     serializer_class = UserSerializer
     
     def get_permissions(self):
@@ -353,18 +351,35 @@ class UserViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """
-        Filter users based on role.
+        Filter users based on role using selectors.
         """
         user = self.request.user
         
         if user.role == "admin":
-            return User.objects.all()
+            return user_list()
         elif user.role == "teacher":
             # Teachers can see users from their school
-            return User.objects.filter(school=user.school)
+            return user_list(school_id=user.school_id) if user.school_id else user_list()
         else:
             # Students can only see themselves
-            return User.objects.filter(id=user.id)
+            return user_list().filter(id=user.id)
+    
+    def perform_create(self, serializer):
+        """
+        Create user using service.
+        """
+        validated_data = serializer.validated_data
+        school_id = validated_data.pop("school_id", None)
+        
+        return user_create(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            role=validated_data["role"],
+            school_id=school_id,
+            subject=validated_data.get("subject"),
+        )
     
     @extend_schema(
         summary="Get Current User",
@@ -390,13 +405,22 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Update current user profile.
         """
+        from .services import user_update
+        
         serializer = UserUpdateSerializer(
             request.user,
             data=request.data,
             partial=True
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        
+        # Use service for update
+        user_update(
+            user=request.user,
+            first_name=serializer.validated_data.get("first_name"),
+            last_name=serializer.validated_data.get("last_name"),
+            subject=serializer.validated_data.get("subject"),
+        )
 
         return Response(UserProfileSerializer(request.user).data)
     
@@ -429,6 +453,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def change_password(self, request):
         """
         Change user password.
+        Uses user_change_password service.
         """
         serializer = PasswordChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -442,9 +467,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Set new password
-        user.set_password(serializer.validated_data["new_password"])
-        user.save()
+        # Use service for password change
+        user_change_password(
+            user=user,
+            new_password=serializer.validated_data["new_password"]
+        )
 
         return Response({"message": "Password changed successfully"})
 

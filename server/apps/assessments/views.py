@@ -1,32 +1,42 @@
 """
 Views for the assessments app.
+
+Refactored to follow Django Styleguide:
+- Business logic moved to services
+- Data fetching moved to selectors
+- Views are thin and only handle HTTP concerns
 """
 
 import logging
 
-import boto3
 from botocore.exceptions import ClientError
-from django.conf import settings
-from django.db.models import Prefetch
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.reports.models import DraftReport
 from apps.audit.models import AuditLog
 from apps.core.permissions import IsAdmin, IsAdminOrTeacher, IsTeacherOfStudent
-from apps.reports.models import SignedReport
+from apps.reports.models import DraftReport, SignedReport
 
-from .models import Assessment, Recording
+from .models import Assessment
+from .selectors import (
+    assessment_list,
+    assessment_list_for_student,
+    assessment_list_for_teacher,
+)
 from .serializers import (
     AssessmentCreateSerializer,
     AssessmentDetailSerializer,
     AssessmentListSerializer,
     AssessmentSignOffSerializer,
     RecordingUploadSerializer,
+)
+from .services import (
+    assessment_mark_error,
+    assessment_start_processing,
+    assessment_upload_recording,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,20 +51,20 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     - Uploading recordings
     - Viewing assessment status and results
     - Teacher sign-off
+    
+    Uses selectors for data fetching and services for business logic.
     """
     
     def get_queryset(self):
-        """Filter assessments based on user role."""
+        """Filter assessments based on user role using selectors."""
         user = self.request.user
         
         if user.role == "admin":
-            return Assessment.objects.all()
+            return assessment_list()
         elif user.role == "teacher":
-            # Teachers see assessments from their cohorts
-            return Assessment.objects.filter(cohort__teacher=user)
+            return assessment_list_for_teacher(teacher_id=str(user.id))
         else:
-            # Students see only their own assessments
-            return Assessment.objects.filter(student__user=user)
+            return assessment_list_for_student(student_id=str(user.id))
     
     def get_serializer_class(self):
         """Return appropriate serializer class."""
@@ -68,8 +78,6 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Custom permissions for different actions."""
-        from rest_framework.permissions import IsAuthenticated
-        
         if self.action == "create":
             return [IsAdminOrTeacher()]
         elif self.action in ["destroy"]:
@@ -80,10 +88,17 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
     
     def perform_create(self, serializer):
-        """Create assessment and log the action."""
-        assessment = serializer.save()
+        """Create assessment using service and log the action."""
+        from .services import assessment_create
         
-        AuditLog.log_assessment_creation(self.request.user, assessment)
+        assessment = assessment_create(
+            student_id=str(serializer.validated_data["student"].id),
+            cohort_id=str(serializer.validated_data["cohort"].id),
+            mode=serializer.validated_data["mode"],
+            prompt=serializer.validated_data["prompt"],
+            time_limit_seconds=serializer.validated_data.get("time_limit_seconds", 180),
+            created_by=self.request.user,
+        )
         
         return assessment
     
@@ -91,6 +106,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def upload_recording(self, request, pk=None):
         """
         Upload a video recording for an assessment.
+        Uses assessment_upload_recording service.
         
         POST /api/v1/assessments/{id}/upload_recording/
         
@@ -99,55 +115,17 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         """
         assessment = self.get_object()
         
-        # Check assessment is in valid state
-        if assessment.status not in ["pending", "uploading"]:
-            return Response(
-                {"error": "Assessment is not in a valid state for upload"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         serializer = RecordingUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         uploaded_file = serializer.validated_data["file"]
         
         try:
-            # Generate S3 key
-            s3_key = f"recordings/{assessment.id}/{uploaded_file.name}"
-            
-            # Upload to S3
-            s3 = boto3.client('s3')
-            bucket = settings.AWS_STORAGE_BUCKET_NAME
-            
-            s3.upload_fileobj(
-                uploaded_file,
-                bucket,
-                s3_key,
-                ExtraArgs={
-                    'ContentType': uploaded_file.content_type,
-                }
-            )
-            
-            # Create recording record
-            recording = Recording.objects.create(
+            # Use service for upload logic
+            recording = assessment_upload_recording(
                 assessment=assessment,
-                original_filename=uploaded_file.name,
-                file_size_bytes=uploaded_file.size,
-                s3_bucket=bucket,
-                s3_key=s3_key,
-            )
-            
-            # Update assessment status
-            assessment.status = "uploading"
-            assessment.uploaded_at = timezone.now()
-            assessment.save()
-            
-            AuditLog.objects.create(
-                action="assessment_uploaded",
-                user=request.user,
-                object_type="Assessment",
-                object_id=str(assessment.id),
-                description=f"Recording uploaded: {uploaded_file.name}"
+                uploaded_file=uploaded_file,
+                uploaded_by=request.user,
             )
             
             return Response({
@@ -156,6 +134,11 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 "status": "uploading"
             }, status=status.HTTP_201_CREATED)
             
+        except ValueError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except ClientError as e:
             logger.error(f"S3 upload failed: {e}")
             return Response(
@@ -173,34 +156,29 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def process(self, request, pk=None):
         """
         Start processing the assessment through the AI pipeline.
+        Uses assessment_start_processing service.
         
         POST /api/v1/assessments/{id}/process/
         """
         assessment = self.get_object()
         
-        if assessment.status not in ["uploading", "error"]:
+        try:
+            # Use service for processing logic
+            assessment_start_processing(
+                assessment=assessment,
+                started_by=request.user,
+            )
+            
+            return Response({
+                "message": "Processing started",
+                "status": "processing"
+            })
+            
+        except ValueError as e:
             return Response(
-                {"error": f"Cannot start processing from status: {assessment.status}"},
+                {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        if not assessment.has_recording:
-            return Response(
-                {"error": "No recording uploaded"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Start async processing
-        from apps.analysis.tasks import process_assessment
-        process_assessment.delay(str(assessment.id))
-        
-        assessment.status = "processing"
-        assessment.save()
-        
-        return Response({
-            "message": "Processing started",
-            "status": "processing"
-        })
     
     @action(detail=True, methods=["get"])
     def transcript(self, request, pk=None):
@@ -313,9 +291,12 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def sign_off(self, request, pk=None):
         """
         Sign off on an assessment report (teacher action).
+        Delegates to reports app service.
         
         POST /api/v1/assessments/{id}/sign_off/
         """
+        from apps.reports.services import signed_report_create_from_draft
+        
         assessment = self.get_object()
         
         if not hasattr(assessment, 'draft_report'):
@@ -330,85 +311,47 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         
         draft = assessment.draft_report
         
-        # Build final scores from input
-        def build_strand_score(band, clips, draft_score):
-            return {
-                "band": band,
-                "confidence": draft_score.get("confidence", 0.7),
-                "evidence_clips": clips,
-                "justification": draft_score.get("justification", ""),
-                "subskills": draft_score.get("subskills", {})
-            }
+        # Build modifications from request data
+        modifications = {}
         
-        # Build final scores
-        physical_score = build_strand_score(
-            data["physical_band"],
-            data.get("physical_clips", []),
-            draft.physical_score
-        )
-        linguistic_score = build_strand_score(
-            data["linguistic_band"],
-            data.get("linguistic_clips", []),
-            draft.linguistic_score
-        )
-        cognitive_score = build_strand_score(
-            data["cognitive_band"],
-            data.get("cognitive_clips", []),
-            draft.cognitive_score
-        )
-        social_emotional_score = build_strand_score(
-            data["social_emotional_band"],
-            data.get("social_emotional_clips", []),
-            draft.social_emotional_score
-        )
-        
-        # Calculate changes from draft
-        changes_summary = {
-            "scores_modified": [],
-            "clips_changed": {}
-        }
-        for strand, draft_data, final_data in [
-            ("physical", draft.physical_score, physical_score),
-            ("linguistic", draft.linguistic_score, linguistic_score),
-            ("cognitive", draft.cognitive_score, cognitive_score),
-            ("social_emotional", draft.social_emotional_score, social_emotional_score),
-        ]:
-            if draft_data.get("band") != final_data.get("band"):
-                changes_summary["scores_modified"].append(strand)
+        # Build strand scores
+        for strand in ['physical', 'linguistic', 'cognitive', 'social_emotional']:
+            band_key = f"{strand}_band"
+            clips_key = f"{strand}_clips"
             
-            draft_clips = set(draft_data.get("evidence_clips", []))
-            final_clips = set(final_data.get("evidence_clips", []))
-            if draft_clips != final_clips:
-                changes_summary["clips_changed"][strand] = {
-                    "removed": list(draft_clips - final_clips),
-                    "added": list(final_clips - draft_clips),
+            if band_key in data:
+                draft_score = getattr(draft, f"{strand}_score")
+                modifications[f"{strand}_score"] = {
+                    "band": data[band_key],
+                    "confidence": draft_score.get("confidence", 0.7),
+                    "evidence_clips": data.get(clips_key, []),
+                    "justification": draft_score.get("justification", ""),
+                    "subskills": draft_score.get("subskills", {}),
                 }
         
-        # Create signed report
-        signed_report = SignedReport.objects.create(
-            assessment=assessment,
-            draft_report=draft,
-            physical_score=physical_score,
-            linguistic_score=linguistic_score,
-            cognitive_score=cognitive_score,
-            social_emotional_score=social_emotional_score,
-            feedback={
-                "strengths": data.get("feedback_strengths", draft.feedback.get("strengths", [])),
-                "next_steps": data.get("feedback_next_steps", draft.feedback.get("next_steps", [])),
-                "goals": data.get("feedback_goals", draft.feedback.get("goals", [])),
-            },
-            teacher_notes=data.get("teacher_notes", ""),
+        # Build feedback modification
+        feedback_data = {}
+        if "feedback_strengths" in data:
+            feedback_data["strengths"] = data["feedback_strengths"]
+        if "feedback_next_steps" in data:
+            feedback_data["next_steps"] = data["feedback_next_steps"]
+        if "feedback_goals" in data:
+            feedback_data["goals"] = data["feedback_goals"]
+        
+        if feedback_data:
+            modifications["feedback"] = {
+                "strengths": feedback_data.get("strengths", draft.feedback.get("strengths", [])),
+                "next_steps": feedback_data.get("next_steps", draft.feedback.get("next_steps", [])),
+                "goals": feedback_data.get("goals", draft.feedback.get("goals", [])),
+            }
+        
+        # Use reports service for sign-off
+        signed_report = signed_report_create_from_draft(
+            draft=draft,
             signed_by=request.user,
-            changes_summary=changes_summary
+            modifications=modifications,
+            teacher_notes=data.get("teacher_notes", ""),
         )
-        
-        # Update assessment status
-        assessment.status = "signed_off"
-        assessment.completed_at = timezone.now()
-        assessment.save()
-        
-        # Log the sign-off
-        AuditLog.log_sign_off(request.user, signed_report)
         
         return Response({
             "message": "Report signed off successfully",
@@ -450,6 +393,7 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     def update_consent(self, request, pk=None):
         """
         Update consent status for an assessment.
+        Uses service for consent update logic.
         
         POST /api/v1/assessments/{id}/update_consent/
         
@@ -458,6 +402,8 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 "consent_obtained": true
             }
         """
+        from .services import assessment_update_consent
+        
         assessment = self.get_object()
         
         consent = request.data.get("consent_obtained")
@@ -467,23 +413,22 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        assessment.consent_obtained = consent
-        if consent:
-            assessment.consent_date = timezone.now()
-        else:
-            assessment.consent_date = None
-        
-        assessment.save()
-        
-        AuditLog.objects.create(
-            action="consent_updated",
-            user=request.user,
-            object_type="Assessment",
-            object_id=str(assessment.id),
-            description=f"Consent updated to: {consent}"
-        )
-        
-        return Response({
-            "message": "Consent updated",
-            "consent_obtained": assessment.consent_obtained
-        })
+        try:
+            # Use service for consent update
+            assessment_update_consent(
+                assessment=assessment,
+                consent_obtained=consent,
+                updated_by=request.user,
+            )
+            
+            return Response({
+                "message": "Consent updated",
+                "consent_obtained": assessment.consent_obtained
+            })
+            
+        except Exception as e:
+            logger.error(f"Consent update failed: {e}")
+            return Response(
+                {"error": "Failed to update consent"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

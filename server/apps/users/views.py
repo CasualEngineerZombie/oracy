@@ -240,6 +240,52 @@ class AuthViewSet(viewsets.GenericViewSet):
         """
         return Response({"message": "Successfully logged out"})
 
+    @extend_schema(
+        summary="Register New User",
+        description="Register a new user account. Does not require authentication. Only works if no admin exists yet (initial setup) or for public registration if enabled.",
+        request=UserCreateSerializer,
+        responses={
+            201: OpenApiResponse(
+                response=UserSerializer,
+                description="User created successfully",
+            ),
+            400: OpenApiResponse(
+                description="Validation error",
+            ),
+            403: OpenApiResponse(
+                description="Registration disabled - admin users already exist",
+            ),
+        },
+        tags=["Authentication"],
+    )
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    def register(self, request):
+        """
+        Register a new user. Only works for initial setup when no admin exists.
+        """
+        # Check if this is initial setup (no admin users exist)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        # If admin users already exist, require admin permission to create more
+        if User.objects.filter(role="admin").exists():
+            return Response(
+                {"error": "Registration is disabled. Contact an administrator to create an account."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Allow first user to be created (will be admin)
+        serializer = UserCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Create user with admin role for initial setup
+        user = User.objects.create_user(**serializer.validated_data)
+        user.role = "admin"
+        user.is_verified = True
+        user.save()
+
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
 
 @extend_schema_view(
     list=extend_schema(

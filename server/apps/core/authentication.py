@@ -5,9 +5,26 @@ JWT Authentication implementation for Django REST Framework.
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import authentication, exceptions
 
 User = get_user_model()
+
+
+class JWTAuthenticationScheme(OpenApiAuthenticationExtension):
+    """
+    OpenAPI schema extension for JWT Authentication.
+    """
+    target_class = "apps.core.authentication.JWTAuthentication"
+    name = "bearerAuth"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Enter your JWT access token in the format: Bearer <token>",
+        }
 
 
 class JWTAuthentication(authentication.BaseAuthentication):

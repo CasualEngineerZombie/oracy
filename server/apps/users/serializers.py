@@ -70,7 +70,16 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if value not in valid_roles:
             raise serializers.ValidationError(f"Role must be one of: {', '.join(valid_roles)}")
         return value
-    
+
+    def validate_school_id(self, value):
+        """Validate that the school exists."""
+        if value:
+            try:
+                School.objects.get(id=value)
+            except School.DoesNotExist:
+                raise serializers.ValidationError(f"School with ID '{value}' does not exist.")
+        return value
+
     def create(self, validated_data):
         school_id = validated_data.pop("school_id", None)
         password = validated_data.pop("password")

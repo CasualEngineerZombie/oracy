@@ -2,6 +2,7 @@
 URL configuration for Oracy AI Server.
 """
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -30,3 +31,9 @@ urlpatterns = [
     # Prometheus metrics
     path("", include("django_prometheus.urls")),
 ]
+
+# Debug toolbar URLs (development only)
+if settings.DEBUG:
+    urlpatterns = [
+        path("__debug__/", include("debug_toolbar.urls")),
+    ] + urlpatterns

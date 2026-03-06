@@ -1,0 +1,507 @@
+[
+  {
+    "model": "benchmarks.benchmarkversion",
+    "pk": 1,
+    "fields": {
+      "version": "v1.0.0",
+      "age_band": "8-9",
+      "mode": "presenting",
+      "definition": {
+        "version": "v1.0.0",
+        "age_band": "8-9",
+        "mode": "presenting",
+        "year_group": "Year 4",
+        "description": "Presenting to an audience - early stage development",
+        "strands": {
+          "physical": {
+            "description": "Physical delivery and voice control",
+            "weight": 0.25,
+            "subskills": {
+              "voice_projection": {
+                "description": "Speaking clearly and loudly enough to be heard",
+                "weight": 0.4,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Voice is often too quiet or unclear; difficult to hear at the back of the room",
+                    "evidence_rules": ["wpm < 60 OR volume_variance < 0.2"],
+                    "disallowed": ["mumbled speech", "inaudible sections"],
+                    "signal_thresholds": {"min_wpm": 0, "max_wpm": 60, "min_volume_variance": 0}
+                  },
+                  "expected": {
+                    "descriptor": "Voice is generally clear and audible; can be heard by the whole audience",
+                    "evidence_rules": ["wpm 60-100 AND volume_variance 0.2-0.5"],
+                    "disallowed": [],
+                    "signal_thresholds": {"min_wpm": 60, "max_wpm": 100, "min_volume_variance": 0.2}
+                  },
+                  "exceeding": {
+                    "descriptor": "Voice is consistently clear with effective variation in volume for emphasis",
+                    "evidence_rules": ["wpm 80-120 AND volume_variance > 0.4"],
+                    "disallowed": [],
+                    "signal_thresholds": {"min_wpm": 80, "max_wpm": 120, "min_volume_variance": 0.4}
+                  }
+                }
+              },
+              "pace_control": {
+                "description": "Speaking at an appropriate speed",
+                "weight": 0.35,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Speaks too fast or too slow; rushes through content or has long pauses",
+                    "evidence_rules": ["wpm > 130 OR wpm < 50 OR pause_ratio > 0.4"],
+                    "signal_thresholds": {"min_wpm": 0, "max_wpm": 50, "high_wpm": 130}
+                  },
+                  "expected": {
+                    "descriptor": "Generally speaks at a steady pace; occasional rushed or slow sections",
+                    "evidence_rules": ["wpm 70-110 AND pause_ratio 0.2-0.35"],
+                    "signal_thresholds": {"min_wpm": 70, "max_wpm": 110, "target_pause_ratio": 0.25}
+                  },
+                  "exceeding": {
+                    "descriptor": "Uses varied pace effectively; slows down for important points, speeds up for less important details",
+                    "evidence_rules": ["wpm 80-120 AND speech_rate_variance > 0.3"],
+                    "signal_thresholds": {"min_wpm": 80, "max_wpm": 120, "min_rate_variance": 0.3}
+                  }
+                }
+              },
+              "clarity": {
+                "description": "Clear articulation and minimal fillers",
+                "weight": 0.25,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Many filler words (um, uh, like) and unclear words; pronunciation difficulties",
+                    "evidence_rules": ["filler_frequency > 8"],
+                    "signal_thresholds": {"max_fillers_per_min": 8}
+                  },
+                  "expected": {
+                    "descriptor": "Some fillers but generally clear; most words are understandable",
+                    "evidence_rules": ["filler_frequency 3-8"],
+                    "signal_thresholds": {"max_fillers_per_min": 8, "min_fillers_per_min": 3}
+                  },
+                  "exceeding": {
+                    "descriptor": "Clear and articulate; very few fillers; confident pronunciation",
+                    "evidence_rules": ["filler_frequency < 3"],
+                    "signal_thresholds": {"max_fillers_per_min": 3}
+                  }
+                }
+              }
+            }
+          },
+          "linguistic": {
+            "description": "Language use and vocabulary",
+            "weight": 0.25,
+            "subskills": {
+              "vocabulary_range": {
+                "description": "Range and appropriateness of words used",
+                "weight": 0.4,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Basic vocabulary; repetitive word choices; limited topic words",
+                    "evidence_rules": ["vocabulary_diversity < 0.4"],
+                    "signal_thresholds": {"min_diversity": 0, "max_diversity": 0.4}
+                  },
+                  "expected": {
+                    "descriptor": "Adequate vocabulary for the topic; some varied word choices",
+                    "evidence_rules": ["vocabulary_diversity 0.4-0.6"],
+                    "signal_thresholds": {"min_diversity": 0.4, "max_diversity": 0.6}
+                  },
+                  "exceeding": {
+                    "descriptor": "Rich and varied vocabulary; uses precise words; includes some descriptive language",
+                    "evidence_rules": ["vocabulary_diversity > 0.55"],
+                    "signal_thresholds": {"min_diversity": 0.55}
+                  }
+                }
+              },
+              "sentence_structure": {
+                "description": "Sentence complexity and variety",
+                "weight": 0.35,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Simple sentences only; often incomplete sentences",
+                    "evidence_rules": ["sentence_length_mean < 5"],
+                    "signal_thresholds": {"min_avg_length": 0, "max_avg_length": 5}
+                  },
+                  "expected": {
+                    "descriptor": "Mix of simple and some compound sentences; mostly complete",
+                    "evidence_rules": ["sentence_length_mean 5-8"],
+                    "signal_thresholds": {"min_avg_length": 5, "max_avg_length": 8}
+                  },
+                  "exceeding": {
+                    "descriptor": "Varied sentence structures; uses connecting words (and, but, because) effectively",
+                    "evidence_rules": ["sentence_length_mean > 7"],
+                    "signal_thresholds": {"min_avg_length": 7}
+                  }
+                }
+              },
+              "register": {
+                "description": "Appropriate formality for presenting",
+                "weight": 0.25,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Very informal; chatty language not suited to presenting",
+                    "evidence_rules": ["register_formality < 0.3"],
+                    "signal_thresholds": {"min_formality": 0, "max_formality": 0.3}
+                  },
+                  "expected": {
+                    "descriptor": "Generally appropriate; mostly stays in 'presenting mode'",
+                    "evidence_rules": ["register_formality 0.3-0.6"],
+                    "signal_thresholds": {"min_formality": 0.3, "max_formality": 0.6}
+                  },
+                  "exceeding": {
+                    "descriptor": "Clear presenting register; appropriate formality throughout",
+                    "evidence_rules": ["register_formality > 0.5"],
+                    "signal_thresholds": {"min_formality": 0.5}
+                  }
+                }
+              }
+            }
+          },
+          "cognitive": {
+            "description": "Thinking, reasoning and structure",
+            "weight": 0.35,
+            "subskills": {
+              "content_structure": {
+                "description": "Clear beginning, middle and end",
+                "weight": 0.35,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "No clear structure; jumps between ideas randomly",
+                    "evidence_rules": ["has_introduction = false AND has_conclusion = false"],
+                    "signal_thresholds": {"requires_intro": true, "requires_conclusion": true}
+                  },
+                  "expected": {
+                    "descriptor": "Has a beginning and end; middle section mostly organised",
+                    "evidence_rules": ["has_introduction = true AND has_conclusion = true"],
+                    "signal_thresholds": {"requires_intro": true, "requires_conclusion": true}
+                  },
+                  "exceeding": {
+                    "descriptor": "Clear intro, well-organised middle, and strong conclusion",
+                    "evidence_rules": ["has_introduction = true AND has_conclusion = true AND structure_completeness > 0.7"],
+                    "signal_thresholds": {"min_structure_score": 0.7}
+                  }
+                }
+              },
+              "reasoning": {
+                "description": "Giving reasons and examples",
+                "weight": 0.35,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "States facts without explaining why; no examples given",
+                    "evidence_rules": ["reason_density < 0.5"],
+                    "signal_thresholds": {"min_reason_density": 0, "max_reason_density": 0.5}
+                  },
+                  "expected": {
+                    "descriptor": "Sometimes gives reasons; includes at least one example",
+                    "evidence_rules": ["reason_density 0.5-1.5"],
+                    "signal_thresholds": {"min_reason_density": 0.5, "max_reason_density": 1.5}
+                  },
+                  "exceeding": {
+                    "descriptor": "Regularly explains reasons; uses multiple relevant examples",
+                    "evidence_rules": ["reason_density > 1.2"],
+                    "signal_thresholds": {"min_reason_density": 1.2}
+                  }
+                }
+              },
+              "coherence": {
+                "description": "Ideas flow logically and connect together",
+                "weight": 0.3,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Ideas don't connect; listener gets confused",
+                    "evidence_rules": ["coherence_score < 0.4"],
+                    "signal_thresholds": {"min_coherence": 0, "max_coherence": 0.4}
+                  },
+                  "expected": {
+                    "descriptor": "Most ideas follow on from each other; generally makes sense",
+                    "evidence_rules": ["coherence_score 0.4-0.7"],
+                    "signal_thresholds": {"min_coherence": 0.4, "max_coherence": 0.7}
+                  },
+                  "exceeding": {
+                    "descriptor": "Ideas flow smoothly; uses words like 'next', 'also', 'finally' to connect",
+                    "evidence_rules": ["coherence_score > 0.65"],
+                    "signal_thresholds": {"min_coherence": 0.65}
+                  }
+                }
+              }
+            }
+          },
+          "social_emotional": {
+            "description": "Engagement and audience awareness",
+            "weight": 0.15,
+            "subskills": {
+              "audience_awareness": {
+                "description": "Awareness of listeners",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Appears unaware of audience; talks to self or no one",
+                    "evidence_rules": ["audience_reference_frequency < 0.1"],
+                    "signal_thresholds": {"min_frequency": 0, "max_frequency": 0.1}
+                  },
+                  "expected": {
+                    "descriptor": "Some awareness of audience; occasional direct address",
+                    "evidence_rules": ["audience_reference_frequency 0.1-0.3"],
+                    "signal_thresholds": {"min_frequency": 0.1, "max_frequency": 0.3}
+                  },
+                  "exceeding": {
+                    "descriptor": "Clear awareness of audience; uses 'you', asks questions, includes listeners",
+                    "evidence_rules": ["audience_reference_frequency > 0.25"],
+                    "signal_thresholds": {"min_frequency": 0.25}
+                  }
+                }
+              },
+              "confidence": {
+                "description": "Appears confident and engaged",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {
+                    "descriptor": "Appears nervous or disengaged; low energy",
+                    "evidence_rules": ["confidence_score < 0.3"],
+                    "signal_thresholds": {"min_confidence": 0, "max_confidence": 0.3}
+                  },
+                  "expected": {
+                    "descriptor": "Reasonably confident; maintains some engagement",
+                    "evidence_rules": ["confidence_score 0.3-0.6"],
+                    "signal_thresholds": {"min_confidence": 0.3, "max_confidence": 0.6}
+                  },
+                  "exceeding": {
+                    "descriptor": "Confident and engaged throughout; positive energy",
+                    "evidence_rules": ["confidence_score > 0.55"],
+                    "signal_thresholds": {"min_confidence": 0.55}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "scoring_logic": {
+          "minimum_evidence_clips": 3,
+          "maximum_evidence_clips": 6,
+          "confidence_threshold": 0.5,
+          "strand_weights": {
+            "physical": 0.25,
+            "linguistic": 0.25,
+            "cognitive": 0.35,
+            "social_emotional": 0.15
+          }
+        },
+        "evidence_rules": {
+          "clip_duration_min": 5,
+          "clip_duration_max": 25,
+          "requires_diverse_strands": true,
+          "max_clips_per_strand": 3
+        },
+        "feedback_templates": {
+          "strengths": {
+            "presenting": [
+              "You spoke clearly so everyone could hear you",
+              "You had a good beginning that told us what you'd talk about",
+              "You used some interesting words to describe things",
+              "You gave an example that helped us understand",
+              "You seemed confident when you were speaking"
+            ]
+          },
+          "next_steps": {
+            "presenting": [
+              "Try to speak a bit louder so everyone can hear",
+              "Remember to look at your audience, not just your notes",
+              "Try to slow down a little - take your time",
+              "Use words like 'first', 'next', 'finally' to help us follow your ideas",
+              "Try to give a reason why something is important, not just say it is"
+            ]
+          },
+          "goals": [
+            "Speak clearly and loud enough for the whole class to hear",
+            "Use connecting words (first, next, finally) to organise your ideas",
+            "Give at least one example or reason for your main points"
+          ]
+        },
+        "eal_scaffolds": {
+          "sentence_stems": [
+            "Today I am going to tell you about...",
+            "The first thing is...",
+            "Another important thing is...",
+            "For example...",
+            "In conclusion...",
+            "Thank you for listening"
+          ],
+          "planning_frames": [
+            "Opening: Say what you'll talk about",
+            "Point 1: First important thing + example",
+            "Point 2: Second important thing + example", 
+            "Closing: Summarise what you said"
+          ],
+          "vocabulary_supports": [
+            "first", "second", "next", "then", "finally",
+            "for example", "because", "also", "important"
+          ]
+        }
+      },
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "notes": "Initial benchmark for Year 4 (ages 8-9) presenting mode"
+    }
+  },
+  {
+    "model": "benchmarks.benchmarkversion",
+    "pk": 2,
+    "fields": {
+      "version": "v1.0.0",
+      "age_band": "8-9",
+      "mode": "explaining",
+      "definition": {
+        "version": "v1.0.0",
+        "age_band": "8-9",
+        "mode": "explaining",
+        "year_group": "Year 4",
+        "description": "Explaining how or why something works - early stage",
+        "strands": {
+          "physical": {
+            "description": "Physical delivery for explanations",
+            "weight": 0.2,
+            "subskills": {
+              "voice_projection": {
+                "description": "Clear audible voice",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {"descriptor": "Often too quiet or unclear", "evidence_rules": ["wpm < 60"]},
+                  "expected": {"descriptor": "Generally clear and audible", "evidence_rules": ["wpm 60-100"]},
+                  "exceeding": {"descriptor": "Clear with effective variation", "evidence_rules": ["wpm 80-120"]}
+                }
+              },
+              "clarity": {
+                "description": "Clear articulation",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {"descriptor": "Many fillers and unclear words", "evidence_rules": ["filler_frequency > 8"]},
+                  "expected": {"descriptor": "Generally clear with some fillers", "evidence_rules": ["filler_frequency 3-8"]},
+                  "exceeding": {"descriptor": "Clear and articulate", "evidence_rules": ["filler_frequency < 3"]}
+                }
+              }
+            }
+          },
+          "linguistic": {
+            "description": "Language for explanation",
+            "weight": 0.25,
+            "subskills": {
+              "explanation_vocabulary": {
+                "description": "Words that show how things work",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {"descriptor": "Simple vocabulary; doesn't use explanation words", "evidence_rules": ["vocabulary_diversity < 0.4"]},
+                  "expected": {"descriptor": "Uses some explanation words (because, when, if)", "evidence_rules": ["vocabulary_diversity 0.4-0.6"]},
+                  "exceeding": {"descriptor": "Uses precise explanation vocabulary effectively", "evidence_rules": ["vocabulary_diversity > 0.55"]}
+                }
+              },
+              "connecting_language": {
+                "description": "Words that link steps or reasons",
+                "weight": 0.5,
+                "bands": {
+                  "emerging": {"descriptor": "Ideas not connected; no linking words", "evidence_rules": ["logical_connector_density < 0.3"]},
+                  "expected": {"descriptor": "Uses some connecting words (then, so, because)", "evidence_rules": ["logical_connector_density 0.3-0.8"]},
+                  "exceeding": {"descriptor": "Uses varied connectors fluently", "evidence_rules": ["logical_connector_density > 0.7"]}
+                }
+              }
+            }
+          },
+          "cognitive": {
+            "description": "Clear thinking and explanation structure",
+            "weight": 0.4,
+            "subskills": {
+              "step_sequence": {
+                "description": "Clear order of steps or reasons",
+                "weight": 0.4,
+                "bands": {
+                  "emerging": {"descriptor": "Steps jumbled or missing; no clear order", "evidence_rules": ["structure_completeness < 0.3"]},
+                  "expected": {"descriptor": "Steps in logical order; mostly clear sequence", "evidence_rules": ["structure_completeness 0.3-0.7"]},
+                  "exceeding": {"descriptor": "Clear step-by-step sequence; uses sequence words", "evidence_rules": ["structure_completeness > 0.65"]}
+                }
+              },
+              "causal_reasoning": {
+                "description": "Explains causes and effects",
+                "weight": 0.35,
+                "bands": {
+                  "emerging": {"descriptor": "States what happens but not why", "evidence_rules": ["reason_density < 0.5"]},
+                  "expected": {"descriptor": "Sometimes explains why; uses 'because'", "evidence_rules": ["reason_density 0.5-1.5"]},
+                  "exceeding": {"descriptor": "Consistently explains causes; varied reason language", "evidence_rules": ["reason_density > 1.2"]}
+                }
+              },
+              "examples": {
+                "description": "Uses examples to clarify",
+                "weight": 0.25,
+                "bands": {
+                  "emerging": {"descriptor": "No examples given", "evidence_rules": ["evidence_density < 0.2"]},
+                  "expected": {"descriptor": "At least one clear example", "evidence_rules": ["evidence_density 0.2-0.8"]},
+                  "exceeding": {"descriptor": "Multiple helpful examples", "evidence_rules": ["evidence_density > 0.7"]}
+                }
+              }
+            }
+          },
+          "social_emotional": {
+            "description": "Helping the listener understand",
+            "weight": 0.15,
+            "subskills": {
+              "listener_checking": {
+                "description": "Checks if explanation makes sense",
+                "weight": 0.6,
+                "bands": {
+                  "emerging": {"descriptor": "Doesn't check if listener understands", "evidence_rules": ["audience_reference_frequency < 0.1"]},
+                  "expected": {"descriptor": "Some awareness of listener's understanding", "evidence_rules": ["audience_reference_frequency 0.1-0.3"]},
+                  "exceeding": {"descriptor": "Actively checks understanding; adapts if needed", "evidence_rules": ["audience_reference_frequency > 0.25"]}
+                }
+              },
+              "patience": {
+                "description": "Takes time to explain properly",
+                "weight": 0.4,
+                "bands": {
+                  "emerging": {"descriptor": "Rushes through; impatient", "evidence_rules": ["wpm > 130"]},
+                  "expected": {"descriptor": "Generally appropriate pace", "evidence_rules": ["wpm 70-110"]},
+                  "exceeding": {"descriptor": "Patient pace; slows for difficult parts", "evidence_rules": ["wpm 80-120 AND pause_ratio > 0.2"]}
+                }
+              }
+            }
+          }
+        },
+        "scoring_logic": {
+          "minimum_evidence_clips": 3,
+          "maximum_evidence_clips": 6,
+          "confidence_threshold": 0.5,
+          "strand_weights": {"physical": 0.2, "linguistic": 0.25, "cognitive": 0.4, "social_emotional": 0.15}
+        },
+        "feedback_templates": {
+          "strengths": {
+            "explaining": [
+              "You explained the steps in a clear order",
+              "You used 'because' to tell us why things happen",
+              "Your example helped me understand",
+              "You spoke clearly throughout your explanation"
+            ]
+          },
+          "next_steps": {
+            "explaining": [
+              "Try to use words like 'first', 'then', 'next' to show the order",
+              "Remember to tell us why something happens, not just what",
+              "Give an example to help us understand better",
+              "Check that your listener understands by asking 'Does that make sense?'"
+            ]
+          },
+          "goals": [
+            "Use sequence words (first, then, next, finally) when explaining steps",
+            "Always give at least one 'because' reason for each main point",
+            "Include a clear example to help your listener understand"
+          ]
+        },
+        "eal_scaffolds": {
+          "sentence_stems": [
+            "First...", "Then...", "Next...", "After that...", "Finally...",
+            "This happens because...", "The reason is...",
+            "For example...", "This means..."
+          ],
+          "planning_frames": ["Step 1:", "Step 2:", "Step 3:", "Why this happens:", "Example:"],
+          "vocabulary_supports": ["first", "then", "next", "because", "so", "this means", "for example"]
+        }
+      },
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "notes": "Year 4 explaining mode"
+    }
+  }
+]

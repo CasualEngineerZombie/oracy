@@ -29,8 +29,18 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await loginMutation.mutateAsync({ email, password });
-      navigate(from, { replace: true });
+      const response = await loginMutation.mutateAsync({ email, password });
+      
+      // Redirect based on the user's actual role from the response
+      const userRole = response.user.role;
+      if (userRole === 'teacher' || userRole === 'admin') {
+        navigate('/teacher', { replace: true });
+      } else if (userRole === 'student') {
+        navigate('/pupil', { replace: true });
+      } else {
+        // Fallback to the role-based selection
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       setError('Invalid email or password. Please try again.');
     }
@@ -153,8 +163,11 @@ export default function LoginPage() {
               
               <p className="text-sm text-center text-muted-foreground">
                 Don't have an account?{' '}
-                <Link to="/register" className="text-primary hover:underline">
-                  Contact your teacher
+                <Link 
+                  to={role === 'teacher' ? '/register/teacher' : '/register/student'} 
+                  className="text-primary hover:underline"
+                >
+                  {role === 'teacher' ? 'Register as Teacher' : 'Register as Student'}
                 </Link>
               </p>
             </CardFooter>

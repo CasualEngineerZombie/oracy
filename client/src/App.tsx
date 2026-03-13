@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import StudentRegisterPage from "./pages/StudentRegisterPage";
+import TeacherRegisterPage from "./pages/TeacherRegisterPage";
 import PupilDashboard from "./pages/PupilDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import TaskRecordingPage from "./pages/TaskRecordingPage";
@@ -13,6 +15,7 @@ import TeacherReviewPage from "./pages/TeacherReviewPage";
 import ProgressPage from "./pages/ProgressPage";
 import NotFound from "./pages/NotFound";
 import LiveDemoPage from "./pages/LiveDemoPage";
+import StudentManagementPage from "./pages/StudentManagementPage";
 import { ProtectedRoute } from "./components/AuthGuard";
 
 const queryClient = new QueryClient({
@@ -34,6 +37,8 @@ const App = () => (
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register/student" element={<StudentRegisterPage />} />
+          <Route path="/register/teacher" element={<TeacherRegisterPage />} />
           <Route path="/live-demo" element={<LiveDemoPage />} />
           
           {/* Student Routes - Protected */}
@@ -107,7 +112,7 @@ const App = () => (
             path="/teacher/students"
             element={
               <ProtectedRoute allowedRoles={['teacher', 'admin']}>
-                <TeacherDashboard />
+                <StudentManagementPage />
               </ProtectedRoute>
             }
           />

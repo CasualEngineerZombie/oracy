@@ -223,3 +223,68 @@ export function useRemoveStudentFromCohort() {
     },
   });
 }
+
+// CSV Import types
+export interface CSVImportResult {
+  created: Array<{
+    row: number;
+    student_id: string;
+    name: string;
+    action: string;
+  }>;
+  updated: Array<{
+    row: number;
+    student_id: string;
+    name: string;
+    action: string;
+  }>;
+  errors: Array<{
+    row: number;
+    student_id?: string;
+    reason: string;
+  }>;
+  skipped: Array<{
+    row: number;
+    student_id?: string;
+    reason: string;
+  }>;
+  summary: {
+    total_created: number;
+    total_updated: number;
+    total_errors: number;
+  };
+}
+
+export interface CSVImportRequest {
+  file: File;
+  cohort_id?: string;
+  academic_year?: string;
+}
+
+export function useBulkImportStudents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CSVImportRequest): Promise<CSVImportResult> => {
+      const formData = new FormData();
+      formData.append('file', data.file);
+      if (data.cohort_id) {
+        formData.append('cohort_id', data.cohort_id);
+      }
+      if (data.academic_year) {
+        formData.append('academic_year', data.academic_year);
+      }
+      
+      const response = await apiClient.post<CSVImportResult>('/students/bulk_import/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['cohorts'] });
+    },
+  });
+}

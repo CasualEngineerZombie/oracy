@@ -34,6 +34,31 @@ export interface RegisterRequest {
   password: string;
   first_name?: string;
   last_name?: string;
+  role?: 'admin' | 'teacher' | 'student';
+  year_group?: string;
+  school_name?: string;
+  school_identifier?: string;
+  subject?: string;
+}
+
+export interface StudentRegisterRequest {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: 'student';
+  year_group: string;
+}
+
+export interface TeacherRegisterRequest {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  role: 'teacher';
+  school_name: string;
+  school_identifier: string;
+  subject: string;
 }
 
 export interface RefreshResponse {
@@ -64,6 +89,24 @@ export function useRegister() {
   return useMutation({
     mutationFn: async (data: RegisterRequest): Promise<User> => {
       const response = await apiClient.post<User>('/auth/register/', data);
+      return response.data;
+    },
+  });
+}
+
+export function useStudentRegister() {
+  return useMutation({
+    mutationFn: async (data: StudentRegisterRequest): Promise<User> => {
+      const response = await apiClient.post<User>('/auth/register/student/', data);
+      return response.data;
+    },
+  });
+}
+
+export function useTeacherRegister() {
+  return useMutation({
+    mutationFn: async (data: TeacherRegisterRequest): Promise<User> => {
+      const response = await apiClient.post<User>('/auth/register/teacher/', data);
       return response.data;
     },
   });

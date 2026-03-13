@@ -32,6 +32,7 @@ from .serializers import (
     AssessmentDetailSerializer,
     AssessmentListSerializer,
     AssessmentSignOffSerializer,
+    PresignedURLSerializer,
     RecordingUploadSerializer,
 )
 from .services import (
@@ -153,6 +154,57 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             "message": f"Created {len(created_assessments)} assessments",
             "count": len(created_assessments),
         }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=["post"])
+    def get_upload_url(self, request, pk=None):
+        """
+        Generate a presigned URL for direct-to-S3 video upload.
+        
+        POST /api/v1/assessments/{id}/get_upload_url/
+        
+        Request body:
+        {
+            "filename": "video.mp4",
+            "content_type": "video/mp4",
+            "file_size": 52428800
+        }
+        
+        Response:
+        {
+            "upload_url": "https://...",
+            "file_key": "recordings/assessment-id/filename",
+            "assessment_id": "uuid",
+            "expires_in": 3600
+        }
+        """
+        from apps.core.storage import S3Storage
+        
+        assessment = self.get_object()
+        serializer = PresignedURLSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        filename = serializer.validated_data["filename"]
+        content_type = serializer.validated_data["content_type"]
+        file_size = serializer.validated_data["file_size"]
+        
+        # Generate unique file key
+        import uuid
+        file_key = f"recordings/{pk}/{uuid.uuid4()}-{filename}"
+        
+        # Get presigned URL for upload
+        s3 = S3Storage()
+        upload_url = s3.generate_presigned_url(
+            key=file_key,
+            expiration=3600,  # 1 hour
+            http_method='put'
+        )
+        
+        return Response({
+            "upload_url": upload_url,
+            "file_key": file_key,
+            "assessment_id": str(assessment.id),
+            "expires_in": 3600
+        })
     
     @action(detail=True, methods=["post"], parser_classes=[MultiPartParser, FormParser])
     def upload_recording(self, request, pk=None):

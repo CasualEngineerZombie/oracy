@@ -190,11 +190,33 @@ export function useBulkCreateAssessment() {
   });
 }
 
+export interface GetUploadUrlRequest {
+  filename: string;
+  content_type: string;
+  file_size: number;
+}
+
+export interface GetUploadUrlResponse {
+  upload_url: string;
+  file_key: string;
+  assessment_id: string;
+  expires_in: number;
+}
+
+export function useGetUploadUrl() {
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: GetUploadUrlRequest }): Promise<GetUploadUrlResponse> => {
+      const response = await apiClient.post<GetUploadUrlResponse>(`/assessments/${id}/get_upload_url/`, data);
+      return response.data;
+    },
+  });
+}
+
 export function useUpdateAssessment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<CreateAssessmentRequest> }): Promise<Assessment> => {
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }): Promise<Assessment> => {
       const response = await apiClient.patch<Assessment>(`/assessments/${id}/`, data);
       return response.data;
     },

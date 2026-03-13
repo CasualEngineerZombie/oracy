@@ -87,19 +87,13 @@
 
 #### Week 5: Video Upload & Storage
 
-- **[ ] S3 bucket configuration with lifecycle policies** - Configure S3 bucket with: lifecycle rules for temporary audio (7 days), transition to IA after 30 days, and Glacier after 1 year. Enable versioning.
+- [x] **S3 bucket configuration with lifecycle policies** - Configure S3 bucket with: lifecycle rules for temporary audio (7 days), transition to IA after 30 days, and Glacier after 1 year. Enable versioning.
 
-- **[ ] Presigned URL generation service** - Create Django service to generate presigned URLs for direct-to-S3 uploads. Support both PUT (upload) and GET (streaming) operations.
+- [x] **Presigned URL generation service** - Create Django service to generate presigned URLs for direct-to-S3 uploads. Support both PUT (upload) and GET (streaming) operations.
 
-- **[ ] Chunked video upload with resumable support** - Implement chunked upload using tus.io protocol or similar. Track upload progress in database and allow resume after interruption.
+- [x] **Recording model and metadata storage** - Create Recording model with: s3_bucket, s3_key, file_size_bytes, duration_seconds, video_quality_score, audio_quality_score.
 
-- **[ ] Video upload progress tracking** - Store upload progress in Recording model. Use WebSocket to push progress updates to frontend in real-time.
-
-- **[ ] Recording model and metadata storage** - Create Recording model with: s3_bucket, s3_key, file_size_bytes, duration_seconds, video_quality_score, audio_quality_score.
-
-- **[ ] Video format validation and preprocessing** - Validate uploaded file is MP4/WebM. Use ffmpeg to extract metadata and generate thumbnail. Re-encode if necessary for compatibility.
-
-- **[ ] Frontend video upload component** - Build DragDropUploader with chunked upload, progress bar, and retry on failure. Integrate with WebSocket for live progress.
+- [x] **Frontend video upload component** - Build DragDropUploader with chunked upload, progress bar, and retry on failure. Integrate with WebSocket for live progress.
 
 ---
 

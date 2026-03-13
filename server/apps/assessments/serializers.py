@@ -238,3 +238,29 @@ class AssessmentSignOffSerializer(serializers.Serializer):
     )
     
     teacher_notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class PresignedURLSerializer(serializers.Serializer):
+    """Serializer for generating presigned upload URLs."""
+    
+    filename = serializers.CharField(max_length=255)
+    content_type = serializers.CharField(max_length=100)
+    file_size = serializers.IntegerField(min_value=1, max_value=500 * 1024 * 1024)  # 500MB max
+    
+    def validate_content_type(self, value):
+        """Validate content type is a supported video format."""
+        allowed_types = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+        if value not in allowed_types:
+            raise serializers.ValidationError(
+                f"Invalid content type. Allowed: {', '.join(allowed_types)}"
+            )
+        return value
+
+
+class PresignedURLResponseSerializer(serializers.Serializer):
+    """Serializer for presigned URL response."""
+    
+    upload_url = serializers.URLField()
+    file_key = serializers.CharField()
+    assessment_id = serializers.CharField()
+    expires_in = serializers.IntegerField()

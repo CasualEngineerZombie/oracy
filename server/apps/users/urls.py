@@ -1,6 +1,12 @@
 from django.urls import path
 
-from .views import AuthViewSet, SchoolViewSet, UserViewSet
+from .views import (
+    AuthViewSet,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    SchoolViewSet,
+    UserViewSet,
+)
 
 app_name = "users"
 
@@ -10,6 +16,10 @@ urlpatterns = [
     path("refresh/", AuthViewSet.as_view({"post": "refresh"}), name="refresh"),
     path("logout/", AuthViewSet.as_view({"post": "logout"}), name="logout"),
     path("register/", AuthViewSet.as_view({"post": "register"}), name="register"),
+    
+    # Password Reset URLs
+    path("password/reset/", PasswordResetRequestView.as_view(), name="password-reset-request"),
+    path("password/reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     
     # User URLs
     path("users/", UserViewSet.as_view({"get": "list", "post": "create"}), name="user-list"),

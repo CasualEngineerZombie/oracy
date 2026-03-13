@@ -28,6 +28,7 @@ from .selectors import (
 )
 from .serializers import (
     AssessmentCreateSerializer,
+    AssessmentBulkCreateSerializer,
     AssessmentDetailSerializer,
     AssessmentListSerializer,
     AssessmentSignOffSerializer,
@@ -91,16 +92,67 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         """Create assessment using service and log the action."""
         from .services import assessment_create
         
-        assessment = assessment_create(
-            student_id=str(serializer.validated_data["student"].id),
-            cohort_id=str(serializer.validated_data["cohort"].id),
-            mode=serializer.validated_data["mode"],
-            prompt=serializer.validated_data["prompt"],
-            time_limit_seconds=serializer.validated_data.get("time_limit_seconds", 180),
-            created_by=self.request.user,
-        )
+        # The serializer's create method handles the creation
+        # We just need to return the created assessment
+        return serializer.save()
+    
+    @action(detail=False, methods=["post"])
+    def bulk_create(self, request):
+        """
+        Bulk create assessments for all students in a cohort.
         
-        return assessment
+        Request body:
+        {
+            "cohort_id": "uuid",
+            "mode": "presenting|explaining|persuading",
+            "prompt": "string",
+            "time_limit_seconds": 180 (optional)
+        }
+        """
+        serializer = AssessmentBulkCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from apps.students.models import Student
+        from .services import assessment_create
+        
+        cohort_id = str(serializer.validated_data["cohort_id"])
+        mode = serializer.validated_data["mode"]
+        prompt = serializer.validated_data["prompt"]
+        time_limit = serializer.validated_data.get("time_limit_seconds", 180)
+        
+        # Get all students in the cohort
+        students = Student.objects.filter(cohort_id=cohort_id)
+        
+        if not students:
+            return Response(
+                {"error": "No students found in cohort"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created_assessments = []
+        for student in students:
+            # Check if assessment already exists for this student and mode
+            existing = Assessment.objects.filter(
+                student=student,
+                mode=mode,
+                status__in=["draft", "recording", "processing"]
+            ).exists()
+            
+            if not existing:
+                assessment = assessment_create(
+                    student_id=str(student.id),
+                    cohort_id=cohort_id,
+                    mode=mode,
+                    prompt=prompt,
+                    time_limit_seconds=time_limit,
+                    created_by=request.user,
+                )
+                created_assessments.append(assessment)
+        
+        return Response({
+            "message": f"Created {len(created_assessments)} assessments",
+            "count": len(created_assessments),
+        }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=["post"], parser_classes=[MultiPartParser, FormParser])
     def upload_recording(self, request, pk=None):

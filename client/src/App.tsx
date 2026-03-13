@@ -16,6 +16,7 @@ import ProgressPage from "./pages/ProgressPage";
 import NotFound from "./pages/NotFound";
 import LiveDemoPage from "./pages/LiveDemoPage";
 import StudentManagementPage from "./pages/StudentManagementPage";
+import CreateAssessmentPage from "./pages/CreateAssessmentPage";
 import { ProtectedRoute } from "./components/AuthGuard";
 
 const queryClient = new QueryClient({
@@ -89,6 +90,14 @@ const App = () => (
             element={
               <ProtectedRoute allowedRoles={['teacher', 'admin']}>
                 <TeacherDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teacher/assessments/create"
+            element={
+              <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+                <CreateAssessmentPage />
               </ProtectedRoute>
             }
           />

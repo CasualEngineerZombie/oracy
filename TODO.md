@@ -11,45 +11,45 @@
 
 #### Week 1: Project Setup & Infrastructure
 
-- **[ ] Initialize Django project with apps structure** - Create Django project with separate apps for users, students, assessments, analysis, reports, and benchmarks. Use Django 5.x with Python 3.12+. Configure apps.py with proper AppConfigs.
+- [x] **Initialize Django project with apps structure** - Create Django project with separate apps for users, students, assessments, analysis, reports, and benchmarks. Use Django 5.x with Python 3.12+. Configure apps.py with proper AppConfigs.
 
-- **[ ] Initialize React project with Vite + TypeScript** - Set up React 18+ with Vite as the build tool. Configure TypeScript strict mode, add TailwindCSS for styling, and set up shadcn/ui components library.
+- [x] **Initialize React project with Vite + TypeScript** - Set up React 18+ with Vite as the build tool. Configure TypeScript strict mode, add TailwindCSS for styling, and set up shadcn/ui components library.
 
-- **[ ] Docker Compose for local development** - Create docker-compose.yml with services for: Django (web), Celery worker, PostgreSQL (db), Redis (cache), and MinIO (S3 local). Configure volume mounts for hot reloading.
+- [x] **Docker Compose for local development** - Create docker-compose.yml with services for: Django (web), Celery worker, PostgreSQL (db), Redis (cache), and MinIO (S3 local). Configure volume mounts for hot reloading.
 
-- **[ ] Git repository setup with branch protection** - Configure GitHub repository with protected main branch, require PR reviews, and set up conventional commits workflow.
+- [x] **Git repository setup with branch protection** - Configure GitHub repository with protected main branch, require PR reviews, and set up conventional commits workflow.
 
-- **[ ] CI/CD pipeline skeleton (GitHub Actions)** - Create .github/workflows with: lint.yml (ESLint, Flake8), test.yml (Vitest, Django tests), and build.yml (Docker build and push).
+- [x] **CI/CD pipeline skeleton (GitHub Actions)** - Create .github/workflows with: lint.yml (ESLint, Flake8), test.yml (Vitest, Django tests), and build.yml (Docker build and push).
 
-- **[ ] Development environment documentation** - Write README.md with local setup instructions, environment variables reference, and troubleshooting guide.
+- [x] **Development environment documentation** - Write README.md with local setup instructions, environment variables reference, and troubleshooting guide.
 
-- **[ ] VPC, subnets, security groups (AWS)** - Create VPC with public/private subnets across 3 availability zones. Configure security groups for: ALB (80/443), ECS (from ALB), RDS (from ECS), ElastiCache (from ECS).
+- [ ] **VPC, subnets, security groups (AWS)** - Create VPC with public/private subnets across 3 availability zones. Configure security groups for: ALB (80/443), ECS (from ALB), RDS (from ECS), ElastiCache (from ECS).
 
-- **[ ] RDS PostgreSQL instance (db.t3.small)** - Launch PostgreSQL 15 on db.t3.small with multi-AZ enabled. Configure parameter groups for JSON support and set up read replicas for future scaling.
+- [ ] **RDS PostgreSQL instance (db.t3.small)** - Launch PostgreSQL 15 on db.t3.small with multi-AZ enabled. Configure parameter groups for JSON support and set up read replicas for future scaling.
 
-- **[ ] S3 bucket with intelligent tiering** - Create S3 bucket with Intelligent-Tiering configuration for automatic cost optimization. Set up lifecycle policies for transition to Glacier after 1 year.
+- [ ] **S3 bucket with intelligent tiering** - Create S3 bucket with Intelligent-Tiering configuration for automatic cost optimization. Set up lifecycle policies for transition to Glacier after 1 year.
 
-- **[ ] ECS cluster with Fargate Spot enabled** - Create ECS cluster with Fargate capacity providers. Configure Spot capacity strategy for fault-tolerant workloads (Celery workers).
+- [ ] **ECS cluster with Fargate Spot enabled** - Create ECS cluster with Fargate capacity providers. Configure Spot capacity strategy for fault-tolerant workloads (Celery workers).
 
-- **[ ] ElastiCache Redis for Celery** - Launch Redis 7 on cache.t3.micro with cluster mode disabled. Configure Redis for both Celery broker and result backend.
+- [ ] **ElastiCache Redis for Celery** - Launch Redis 7 on cache.t3.micro with cluster mode disabled. Configure Redis for both Celery broker and result backend.
 
 ---
 
 #### Week 2: Authentication & User Management
 
-- **[ ] User authentication (JWT) - backend** - Implement JWT-based authentication using SimpleJWT library. Configure access token lifetime (15 min) and refresh token lifetime (1 day). Add custom claims for user role and school_id.
+- [x] **User authentication (JWT) - backend** - Implement JWT-based authentication using SimpleJWT library. Configure access token lifetime (15 min) and refresh token lifetime (1 day). Add custom claims for user role and school_id.
 
-- **[ ] User registration and login flows** - Create Django REST Framework views for registration, login, and token refresh. Implement email verification flow with time-limited tokens.
+- [x] **User registration and login flows** - Create Django REST Framework views for registration, login, and token refresh. Implement email verification flow with time-limited tokens.
 
-- **[ ] User model with roles (admin, teacher, student)** - Extend Django AbstractUser with: role (choices: admin, teacher, student), school (FK to School), and custom manager methods.
+- [x] **User model with roles (admin, teacher, student)** - Extend Django AbstractUser with: role (choices: admin, teacher, student), school (FK to School), and custom manager methods.
 
-- **[ ] School model and multi-tenancy structure** - Create School model with: name, identifier (URN), region, and settings (JSONB for tenant-specific config). Implement row-level security for multi-tenancy.
+- [x] **School model and multi-tenancy structure** - Create School model with: name, identifier (URN), region, and settings (JSONB for tenant-specific config). Implement row-level security for multi-tenancy.
 
-- **[ ] Password reset functionality** - Implement password reset via email with secure token generation. Use Django's built-in password reset views with custom email template.
+- [x] **Password reset functionality** - Implement password reset via email with secure token generation. Use Django's built-in password reset views with custom email template.
 
-- **[ ] Email service integration** - Configure AWS SES for production email sending. Use environment variables for SMTP configuration in development (use Mailhog or similar).
+- [ ] **Email service integration** - Configure AWS SES for production email sending. Use environment variables for SMTP configuration in development (use Mailhog or similar).
 
-- **[ ] Frontend login/register pages** - Build LoginPage.tsx with form validation using React Hook Form + Zod. Create RegistrationPage with role selection and school code input.
+- [x] **Frontend login/register pages** - Build LoginPage.tsx with form validation using React Hook Form + Zod. Create RegistrationPage with role selection and school code input.
 
 ---
 
@@ -71,17 +71,15 @@
 
 #### Week 4: Assessment Framework & UI
 
-- **[ ] Assessment model and lifecycle** - Create Assessment model with status enum: pending, uploading, processing, draft_ready, under_review, signed_off, error. Include status_message for error details.
+- [x] **Assessment model and lifecycle** - Create Assessment model with status enum: pending, uploading, processing, draft_ready, under_review, signed_off, error. Include status_message for error details.
 
-- **[ ] Prompt template system** - Create PromptTemplate model with: name, mode (presenting/explaining/persuading), age_band, template_text (with {{variable}} placeholders), and time_limit_seconds.
+- [x] **Prompt template system** - Create PromptTemplate model with: name, mode (presenting/explaining/persuading), age_band, template_text (with {{variable}} placeholders), and time_limit_seconds.
 
-- **[ ] Assessment creation flow (teacher)** - Build API endpoint to create assessment from template + cohort selection. Generate unique recording prompts for each student.
+- [x] **Assessment creation flow (teacher)** - Build API endpoint to create assessment from template + cohort selection. Generate unique recording prompts for each student.
 
-- **[ ] Assessment assignment to students** - Implement bulk assignment of assessments to students within a cohort. Send notifications (email/in-app) when new assessment is assigned.
+- [x] **Assessment scheduling** - Add scheduled_date field to Assessment model. Create Celery task to activate assessments at scheduled time.
 
-- **[ ] Assessment scheduling** - Add scheduled_date field to Assessment model. Create Celery task to activate assessments at scheduled time.
-
-- **[ ] Frontend assessment creation interface** - Build wizard-style form with: template selection, cohort selection, scheduling options, and confirmation step.
+- [x] **Frontend assessment creation interface** - Build wizard-style form with: template selection, cohort selection, scheduling options, and confirmation step.
 
 ---
 

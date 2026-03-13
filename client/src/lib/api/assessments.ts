@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 // Types
-export type AssessmentMode = 'formal' | 'informal' | 'practice';
+export type AssessmentMode = 'presenting' | 'explaining' | 'persuading';
 export type AssessmentStatus = 'draft' | 'recording' | 'uploading' | 'processing' | 'completed' | 'error';
 
 export interface Assessment {
@@ -111,8 +111,8 @@ export interface SignedReport extends Omit<DraftReport, 'is_reviewed'> {
 }
 
 export interface CreateAssessmentRequest {
-  student: string;
-  cohort: string;
+  student_id: string;
+  cohort_id: string;
   mode: AssessmentMode;
   prompt: string;
   time_limit_seconds?: number;
@@ -161,6 +161,27 @@ export function useCreateAssessment() {
   return useMutation({
     mutationFn: async (data: CreateAssessmentRequest): Promise<Assessment> => {
       const response = await apiClient.post<Assessment>('/assessments/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
+    },
+  });
+}
+
+export interface BulkCreateAssessmentRequest {
+  cohort_id: string;
+  mode: AssessmentMode;
+  prompt: string;
+  time_limit_seconds?: number;
+}
+
+export function useBulkCreateAssessment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: BulkCreateAssessmentRequest): Promise<{ count: number }> => {
+      const response = await apiClient.post<{ count: number }>('/assessments/bulk_create/', data);
       return response.data;
     },
     onSuccess: () => {

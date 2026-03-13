@@ -4,10 +4,107 @@ Assessment models for the Oracy AI platform.
 
 import uuid
 
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 from apps.core.models import BaseModel
+
+
+class PromptTemplate(BaseModel):
+    """
+    Template for assessment prompts.
+    
+    Allows teachers to select from pre-defined prompts or create custom prompts
+    with placeholders that get filled in for each student.
+    """
+    
+    # Mode of talk
+    MODE_CHOICES = [
+        ("presenting", "Presenting"),
+        ("explaining", "Explaining"),
+        ("persuading", "Persuading"),
+    ]
+    
+    name = models.CharField(max_length=200, help_text="Template name")
+    description = models.TextField(blank=True, help_text="Description of this prompt type")
+    
+    # Mode and age band
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES, help_text="Mode of talk")
+    age_band = models.CharField(max_length=10, help_text="e.g., '11-12', '13-14'")
+    
+    # Template with placeholders
+    template_text = models.TextField(
+        help_text="Prompt template with {{variable}} placeholders. "
+                  "Available: {{student_name}}, {{topic}}, {{time_limit}}"
+    )
+    
+    # Time limit
+    time_limit_seconds = models.IntegerField(
+        default=180,
+        validators=[MinValueValidator(30), MaxValueValidator(600)],
+        help_text="Time limit in seconds (30s to 10min)"
+    )
+    
+    # Optional topic placeholder
+    requires_topic = models.BooleanField(
+        default=False,
+        help_text="Whether this prompt requires a custom topic"
+    )
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="Mark as default template for this mode/age band"
+    )
+    
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="prompt_templates"
+    )
+    
+    class Meta:
+        db_table = "prompt_templates"
+        ordering = ["mode", "age_band", "name"]
+        unique_together = ["mode", "age_band", "name"]
+        indexes = [
+            models.Index(fields=["mode"]),
+            models.Index(fields=["age_band"]),
+            models.Index(fields=["is_active"]),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.mode}, {self.age_band})"
+    
+    def render(self, student_name: str = "", topic: str = "") -> str:
+        """
+        Render the template with given variables.
+        
+        Args:
+            student_name: Student's name
+            topic: Custom topic (if required)
+        
+        Returns:
+            Rendered prompt text
+        """
+        text = self.template_text
+        text = text.replace("{{student_name}}", student_name or "Student")
+        text = text.replace("{{topic}}", topic or self.get_default_topic())
+        text = text.replace("{{time_limit}}", str(self.time_limit_seconds))
+        return text
+    
+    def get_default_topic(self) -> str:
+        """Get a default topic based on mode."""
+        topics = {
+            "presenting": "a topic of your choice",
+            "explaining": "how something works or how to do something",
+            "persuading": "why something is important or should be done",
+        }
+        return topics.get(self.mode, "a topic of your choice")
 
 
 class Assessment(BaseModel):
@@ -64,6 +161,13 @@ class Assessment(BaseModel):
     # Consent and privacy
     consent_obtained = models.BooleanField(default=False)
     consent_date = models.DateTimeField(null=True, blank=True)
+    
+    # Scheduling
+    scheduled_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this assessment should become active. Null means immediate."
+    )
     
     # Status tracking
     status = models.CharField(

@@ -133,6 +133,24 @@ class AssessmentCreateSerializer(serializers.ModelSerializer):
         return assessment
 
 
+class AssessmentBulkCreateSerializer(serializers.Serializer):
+    """Serializer for bulk creating assessments for a cohort."""
+    
+    cohort_id = serializers.UUIDField()
+    mode = serializers.ChoiceField(choices=["presenting", "explaining", "persuading"])
+    prompt = serializers.CharField()
+    time_limit_seconds = serializers.IntegerField(required=False, default=180)
+    
+    def validate_cohort_id(self, value):
+        """Validate cohort exists."""
+        from apps.students.models import Cohort
+        try:
+            Cohort.objects.get(id=value)
+        except Cohort.DoesNotExist:
+            raise serializers.ValidationError("Cohort not found")
+        return value
+
+
 class RecordingUploadSerializer(serializers.Serializer):
     """Serializer for uploading a recording."""
     

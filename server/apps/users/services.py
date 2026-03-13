@@ -10,8 +10,12 @@ Naming conventions:
 - user_authenticate(*, email: str, ...) -> Optional[User]
 - user_generate_tokens(*, user: User) -> TokenPair
 - user_refresh_access_token(*, refresh_token: str) -> AccessToken
+- user_request_password_reset(*, email: str) -> Optional[str]
+- user_reset_password(*, token: str, new_password: str) -> User
 """
 
+import uuid
+from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
 import jwt
@@ -21,6 +25,9 @@ from django.contrib.auth import get_user_model
 from apps.core.authentication import generate_access_token, generate_refresh_token
 
 User = get_user_model()
+
+# Password reset token lifetime (1 hour)
+PASSWORD_RESET_TOKEN_LIFETIME = 60  # minutes
 
 
 def user_create(
@@ -223,3 +230,77 @@ def user_get_by_id(*, user_id: str) -> Optional[User]:
         return User.objects.get(id=user_id, is_active=True)
     except User.DoesNotExist:
         return None
+
+
+def generate_password_reset_token(user: User) -> str:
+    """
+    Generate a password reset token for the user.
+    
+    Args:
+        user: The user requesting password reset
+    
+    Returns:
+        JWT token for password reset
+    """
+    payload = {
+        "user_id": str(user.id),
+        "email": user.email,
+        "type": "password_reset",
+        "exp": datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_LIFETIME),
+        "iat": datetime.utcnow(),
+    }
+    
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+
+def user_request_password_reset(*, email: str) -> Optional[str]:
+    """
+    Request a password reset for a user.
+    
+    Args:
+        email: The user's email address
+    
+    Returns:
+        Password reset token if user exists, None otherwise
+        (Returns None to prevent email enumeration)
+    """
+    try:
+        user = User.objects.get(email__iexact=email, is_active=True)
+    except User.DoesNotExist:
+        # Return None to prevent email enumeration
+        return None
+    
+    return generate_password_reset_token(user)
+
+
+def user_reset_password(*, token: str, new_password: str) -> User:
+    """
+    Reset a user's password using a token.
+    
+    Args:
+        token: The password reset token
+        new_password: The new password
+    
+    Returns:
+        The user whose password was reset
+    
+    Raises:
+        jwt.ExpiredSignatureError: If token has expired
+        jwt.InvalidTokenError: If token is invalid
+    """
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=["HS256"]
+    )
+    
+    if payload.get("type") != "password_reset":
+        raise jwt.InvalidTokenError("Invalid token type")
+    
+    user_id = payload.get("user_id")
+    user = User.objects.get(id=user_id)
+    
+    user.set_password(new_password)
+    user.save()
+    
+    return user

@@ -24,6 +24,8 @@ from .selectors import user_list, user_list_admins
 from .serializers import (
     LoginSerializer,
     PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     RefreshTokenSerializer,
     SchoolSerializer,
     TokenRefreshResponseSerializer,
@@ -39,6 +41,8 @@ from .services import (
     user_create,
     user_generate_tokens,
     user_refresh_access_token,
+    user_request_password_reset,
+    user_reset_password,
 )
 
 User = get_user_model()
@@ -319,6 +323,94 @@ class AuthViewSet(viewsets.GenericViewSet):
         responses={204: None},
     ),
 )
+
+
+# Password Reset Views
+class PasswordResetRequestView(APIView):
+    """Request a password reset email."""
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary="Request Password Reset",
+        description="Request a password reset email. If the email exists, a reset link will be sent.",
+        request=PasswordResetRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="If the email exists, a password reset email will be sent.",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={"message": "If an account with that email exists, a password reset link has been sent."},
+                    ),
+                ],
+            ),
+        },
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        email = request.data.get("email")
+        
+        if not email:
+            return Response(
+                {"error": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # This will return None if user doesn't exist (prevents email enumeration)
+        token = user_request_password_reset(email=email)
+        
+        # Always return success to prevent email enumeration
+        return Response({
+            "message": "If an account with that email exists, a password reset link has been sent."
+        })
+
+
+class PasswordResetConfirmView(APIView):
+    """Confirm password reset with new password."""
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary="Reset Password",
+        description="Reset password using the token from the email.",
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Password reset successful",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={"message": "Password has been reset successfully."},
+                    ),
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Invalid or expired token",
+            ),
+        },
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+        
+        try:
+            user_reset_password(token=token, new_password=new_password)
+            return Response({"message": "Password has been reset successfully."})
+        except jwt.ExpiredSignatureError:
+            return Response(
+                {"error": "Password reset token has expired."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except jwt.InvalidTokenError:
+            return Response(
+                {"error": "Invalid password reset token."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 @extend_schema(tags=["Users"])
 class UserViewSet(viewsets.ModelViewSet):
     """
